@@ -30,6 +30,7 @@ python3 -m http.server 8000
 
 지금의 도트 UI(틀·버튼·책·왕관·구름·땅·도시)는 `tools/make-assets.mjs`가 만든 PNG다. 색이나 모양을 바꾸려면 이 파일을 고치고 `npm run assets`.
 직접 그린 파일로 바꾸려면 `assets/` 아래 같은 이름·같은 크기로 덮어쓴다 (틀은 9분할이므로 테두리 칸 수를 유지).
+배경 거리와 땅 위 장식(나무·가로등 등)은 Kenney의 "Roguelike Modern City"(CC0) 타일을 `tools/make-city.py`로 조립한 것이다 (`python3 tools/make-city.py`, Pillow 필요). 타일 원본과 라이선스는 `tools/kenney-city/`.
 글꼴은 [갈무리](https://github.com/quiple/galmuri) (SIL OFL, `assets/fonts/LICENSE.txt`).
 
 - 랜드마크 그림: `assets/landmarks/landmark_{id}.png`를 넣고 `js/assets.js`의 `landmarkPngs`에 id를 적는다.
@@ -42,3 +43,8 @@ python3 -m http.server 8000
 ```
 npm test
 ```
+
+## 그림 출처
+
+- 배경·장식 타일: [Kenney](https://www.kenney.nl) Roguelike Modern City, CC0
+- 글꼴: [갈무리](https://github.com/quiple/galmuri), SIL OFL 1.1

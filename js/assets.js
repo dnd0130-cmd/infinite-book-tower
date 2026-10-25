@@ -15,7 +15,20 @@ export const ASSETS = {
   star: 'assets/ui/star.png',            // 9×10
   booksIcon: 'assets/ui/books.png',      // 12×7
   sky: null,                             // 배경 하늘 (null이면 계단식 색 띠)
-  city: 'assets/bg/city.png',            // 120×60, 가로 반복
+  // 배경 거리와 땅 위 장식: Kenney "Roguelike Modern City" (CC0) 타일을 tools/make-city.py로 조립
+  city: 'assets/bg/city.png',            // 가로 반복
+  citySize: [480, 176],
+  bgScale: 2,                            // 배경은 한 칸 2px (멀리 있는 느낌)
+  props: [                               // x: 책탑 뷰 가로 위치(0~1)
+    { src: 'assets/props/tree_green.png', w: 12, h: 45, x: 0.06 },
+    { src: 'assets/props/lamp.png', w: 16, h: 47, x: 0.17 },
+    { src: 'assets/props/trash.png', w: 8, h: 13, x: 0.22 },
+    { src: 'assets/props/tree_orange.png', w: 12, h: 45, x: 0.70 },
+    { src: 'assets/props/hydrant.png', w: 8, h: 13, x: 0.77 },
+    { src: 'assets/props/lamp.png', w: 16, h: 47, x: 0.85 },
+    { src: 'assets/props/mailbox.png', w: 12, h: 30, x: 0.91 },
+    { src: 'assets/props/tree_dark.png', w: 12, h: 45, x: 0.97 },
+  ],
   cloud: 'assets/bg/cloud.png',          // 24×9
   ground: 'assets/bg/ground.png',        // 16×14, 가로 반복
   // 랜드마크 PNG: assets/landmarks/landmark_{id}.png 파일을 넣고, 그 id를 아래 목록에 적으면 격자 대신 사용

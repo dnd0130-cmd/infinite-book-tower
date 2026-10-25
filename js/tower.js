@@ -110,7 +110,15 @@ export function createTower(root) {
       // 구름은 높이마다 크기를 조금씩 다르게 (1~2배)
       parts.push(`<div class="tw-cloud${cls}" style="left:${x}px;top:${y}px;${bg}${hash('cs' + i) % 2 ? `width:${48 * U}px;height:${18 * U}px;` : ''}"></div>`);
     }
-    parts.push(`<div class="tw-city" style="bottom:40px;background:url(${cityTileUrl()}) repeat-x bottom left/${120 * U}px ${60 * U}px"></div>`);
+    const [cw, ch] = ASSETS.citySize, cs = ASSETS.bgScale;
+    parts.push(`<div class="tw-city" style="bottom:40px;height:${ch * cs}px;background:url(${cityTileUrl()}) repeat-x bottom left/${cw * cs}px ${ch * cs}px"></div>`);
+    // 땅 위 장식 (책탑과 겹치는 것은 빼고)
+    for (const p of ASSETS.props) {
+      const pw = p.w * cs, x = RULER_W + (width - RULER_W) * p.x - pw / 2;
+      if (x + pw > cx - towerW / 2 - 8 && x < cx + towerW / 2 + 8) continue;
+      if (x < RULER_W || x + pw > width) continue;
+      parts.push(`<img class="tw-prop" src="${p.src}" alt="" style="left:${x}px;top:${L.groundY - p.h * cs + 2}px;width:${pw}px;height:${p.h * cs}px;z-index:1">`);
+    }
 
     // 2. 눈금
     parts.push(`<div class="tw-ruler"></div>`);

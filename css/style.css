@@ -26,7 +26,7 @@
 html, body, #app { margin: 0; height: 100%; }
 body {
   font-family: var(--font); font-size: 15px; line-height: 1.5; color: var(--ink);
-  background: var(--bg) url('../assets/bg/city.png') repeat-x left bottom / calc(var(--u) * 120) calc(var(--u) * 60);
+  background: var(--bg) url('../assets/bg/city.png') repeat-x left bottom / 960px 352px;
   -webkit-font-smoothing: none; -webkit-text-size-adjust: 100%;
 }
 * { image-rendering: pixelated; }
@@ -91,7 +91,7 @@ h2 { font-size: 15px; margin: 0 0 8px; color: #6a3a1a; display: flex; align-item
 
 /* ── 로그인 ── */
 .login { min-height: 100%; display: flex; flex-direction: column; align-items: center; padding: 40px 16px 200px;
-  background: url('../assets/bg/city.png') repeat-x left bottom / calc(var(--u) * 120) calc(var(--u) * 60),
+  background: url('../assets/bg/city.png') repeat-x left bottom / 960px 352px,
     url('../assets/bg/ground.png') repeat-x left bottom / calc(var(--u) * 16) calc(var(--u) * 14),
     linear-gradient(#3f7fc9 0 20%, #4d8dd2 20% 40%, #63a1dc 40% 60%, #82bbe7 60% 80%, #a7d3f0 80%); }
 .login h1 { font-family: 'Galmuri11'; font-weight: 700; font-size: 48px; line-height: 1.1; margin: 0; color: #fff;
@@ -129,7 +129,8 @@ h2 { font-size: 15px; margin: 0 0 8px; color: #6a3a1a; display: flex; align-item
 .tw-sky { left: 0; right: 0; top: 0; bottom: 0; }
 .tw-cloud { width: calc(var(--u) * 24); height: calc(var(--u) * 9); }
 .tw-cloud.ph { background: #fff; border-radius: 40%; }
-.tw-city { left: 0; right: 0; height: calc(var(--u) * 60); opacity: .55; }
+.tw-city { left: 0; right: 0; opacity: .8; }
+.tw-prop { image-rendering: pixelated; }
 .tw-ground { left: 0; right: 0; bottom: 0; height: 40px; background: #5fae3e; }
 .tw-ruler { left: 0; top: 0; bottom: 40px; width: 52px; border-right: var(--u) solid var(--ink); background: rgba(255, 248, 225, .55); }
 .tw-tick { left: 38px; width: 14px; height: 3px; background: var(--ink); }

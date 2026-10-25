@@ -188,22 +188,7 @@ save('bg/cloud.png', fromGrid([
   save('bg/ground.png', c);
 }
 
-{
-  const W = 120, H = 60, c = canvas(W, H);
-  let x = 0, i = 0;
-  while (x < W) {
-    const bw = Math.min(W - x, 8 + hash('w' + i) % 12), bh = 16 + hash('h' + i) % 40;
-    const top = H - bh, body = i % 2 ? '#7f97c9' : '#6d86bd', edge = '#566fa6', win = '#c4d4f2';
-    c.rect(x, top, bw - 1, bh, body);
-    c.rect(x + bw - 2, top, 1, bh, edge);
-    if (hash('r' + i) % 3 === 0 && bw > 6) c.rect(x + 2, top - 3, 2, 3, edge);           // 옥상 안테나
-    if (hash('s' + i) % 3 === 1) c.rect(x, top, bw - 1, 1, lighten(body, .25));          // 지붕 선
-    for (let wy = top + 3; wy < H - 3; wy += 4) for (let wx = x + 2; wx < x + bw - 3; wx += 3)
-      if (hash(`${wx},${wy}`) % 4) c.rect(wx, wy, 1, 2, win);
-    x += bw; i++;
-  }
-  save('bg/city.png', c);
-}
+// 도시 배경(bg/city.png)과 땅 위 장식은 tools/make-city.py가 Kenney 타일로 만든다
 
 // 7) 책 스프라이트 8색 × 장식 3종 (명세 7장). 6줄: 위 테두리 2 / 반복되는 가운데 2 / 아래 테두리 2
 //    9분할: 위 2, 오른쪽 2, 아래 2, 왼쪽 6 (종이 단면은 늘어나지 않음)
