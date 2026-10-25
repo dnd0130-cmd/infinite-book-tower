@@ -46,6 +46,25 @@ function openModal(inner) {
   return back;
 }
 
+/**
+ * 책 한 권의 한 줄 느낌을 화면 아래쪽에 5초 동안 보여 준다 (다른 책을 누르면 바로 바뀜).
+ * note가 null이면 '볼 수 없음', 빈 글이면 '적지 않음'으로 안내한다.
+ */
+let noteTimer;
+export function showBookNote({ title, pages, who, date, note }, onHide) {
+  document.querySelector('.note-card')?.dispatchEvent(new Event('hide'));   // 이전 카드 정리
+  const text = note == null ? '<span class="muted">한 줄 느낌은 쓴 친구와 선생님만 볼 수 있어요</span>'
+    : note ? esc(note) : '<span class="muted">적어 둔 한 줄 느낌이 없어요</span>';
+  const card = h(`<div class="note-card frame" role="status">
+    <div class="nc-title">${esc(title)}</div>
+    <div class="small muted">${esc(who)} · ${fmtN(pages)}쪽${date ? ' · ' + fmtDate(date) : ''}</div>
+    <div class="nc-note">${text}</div><i class="nc-bar"></i></div>`);
+  document.body.append(card);
+  const hide = () => { clearTimeout(noteTimer); card.remove(); onHide?.(); };
+  card.addEventListener('hide', hide, { once: true });
+  noteTimer = setTimeout(hide, 5000);
+}
+
 /** 확인창. 확인을 누르면 true */
 export function confirmBox(message, okLabel = '삭제') {
   return new Promise(res => {

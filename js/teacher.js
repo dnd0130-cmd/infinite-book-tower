@@ -103,7 +103,7 @@ export async function startTeacher(root, { user, onLogout }) {
   function renderTower(reset) {
     const cm = Number(cls.cm_per_page), goal = Number(cls.goal_m);
     const num = new Map(students.map(s => [s.id, s.number]));
-    tower.update({ books, cmPerPage: cm, goalM: goal, mode: 'class', numberOf: id => num.get(id), leader: leader(students, books) }, { reset });
+    tower.update({ books, cmPerPage: cm, goalM: goal, mode: 'class', numberOf: id => num.get(id), nameOf: id => { const s = students.find(x => x.id === id); return s ? `${s.number}번 ${s.name}` : ''; }, leader: leader(students, books) }, { reset });
     const pages = books.reduce((s, b) => s + b.pages, 0), M = heightM(pages, cm);
     const pct = goal > 0 ? Math.min(100, M / goal * 100) : 0;
     const L = tower.layout;

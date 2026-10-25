@@ -7,7 +7,7 @@ import {
 import { getLandmarks } from './landmarks.js';
 import { ASSETS, COVER_COLORS, U, icon } from './assets.js';
 import { silhouetteImage, placeSilhouette } from './sil-render.js';
-import { esc, fmtM, fmtN, landmarkCard } from './ui.js';
+import { esc, fmtM, fmtN, landmarkCard, showBookNote } from './ui.js';
 
 const RULER_W = 52;
 const TOWER_UNITS = 55;          // 책탑 대표 폭(칸). 실루엣 위치 계산용
@@ -63,7 +63,7 @@ function bookStyle(color, variant, hPx, sprite) {
 
 /**
  * root: 빈 div. 반환 객체의 update(data, { reset })로 그린다.
- * data = { books, cmPerPage, goalM, mode, numberOf(studentId), leader: {names, pages}|null }
+ * data = { books, cmPerPage, goalM, mode, numberOf(studentId), nameOf(studentId), leader: {names, pages}|null }
  */
 export function createTower(root) {
   root.classList.add('tower');
@@ -85,7 +85,7 @@ export function createTower(root) {
   const leaderEl = root.querySelector('.tw-leader');
   const slider = root.querySelector('input[type=range]');
 
-  let zoom = 1, data = null, layout = null, override = null, raf = 0, pendingReset = false;
+  let zoom = 1, data = null, layout = null, override = null, raf = 0, pendingReset = false, selId = null;
 
   function draw({ reset = false } = {}) {
     if (!data) return;
@@ -162,7 +162,7 @@ export function createTower(root) {
       cumM += heightM(b.pages, data.cmPerPage);
       const st = bookStyle(COVER_COLORS[ci], b.variant, b.heightPx, ASSETS.books[ci]?.[b.variant] ?? null);
       const title = b.heightPx >= 16 ? `<span class="t">${esc(b.title)}</span>` : '';
-      parts.push(`<div class="tw-book ${st.cls}" style="left:${left}px;top:${top}px;width:${w}px;height:${b.heightPx}px;${st.bg};z-index:2">${title}</div>`);
+      parts.push(`<div class="tw-book ${st.cls}${b.id === selId ? ' sel' : ''}" data-id="${esc(b.id)}" style="left:${left}px;top:${top}px;width:${w}px;height:${b.heightPx}px;${st.bg};z-index:2">${title}</div>`);
     }
 
     // 6. 현재 높이선 + 말풍선
@@ -248,6 +248,18 @@ export function createTower(root) {
     setZoom(pinch.z * dist(e.touches) / pinch.d);
   }, { passive: false });
   scroller.addEventListener('touchend', e => { if (e.touches.length < 2) pinch = null; });
+
+  // 책을 누르면 그 책의 한 줄 느낌을 5초 동안 보여 준다
+  scroller.addEventListener('click', e => {
+    const el = e.target.closest?.('.tw-book');
+    const bk = el && data?.books.find(b => String(b.id) === el.dataset.id);
+    if (!bk) return;
+    // 카드를 먼저 띄운다 (이전 카드가 닫히며 표시를 지우므로, 표시는 그 뒤에 한다)
+    showBookNote({ title: bk.title, pages: bk.pages, who: data.nameOf?.(bk.student_id) ?? '', date: bk.created_at, note: bk.note },
+      () => { selId = null; content.querySelectorAll('.tw-book.sel').forEach(x => x.classList.remove('sel')); });
+    content.querySelectorAll('.tw-book.sel').forEach(x => x.classList.remove('sel'));
+    selId = bk.id; el.classList.add('sel');
+  });
 
   // 랜드마크 이름표를 누르면 설명 카드 (안쪽 내용은 터치를 받지 않지만 이름표만은 받는다)
   scroller.addEventListener('click', e => {

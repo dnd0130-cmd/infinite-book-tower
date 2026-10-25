@@ -3,7 +3,7 @@ import { api } from './api.js';
 import { heightM, leader, newlyReached, seenKey, validateBook, sortBooks } from './core.js';
 import { createTower } from './tower.js';
 import { icon } from './assets.js';
-import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, breakthroughPopup } from './ui.js';
+import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, breakthroughPopup, showBookNote } from './ui.js';
 
 const REFRESH_MS = 30000;
 const store = {
@@ -79,6 +79,7 @@ export async function startStudent(root, { code, number, data, onLogout }) {
     tower.update({
       books, cmPerPage: cm, goalM: goal, mode,
       numberOf: id => numberOf.get(id),
+      nameOf: id => id === me.id ? '나' : `${numberOf.get(id) ?? '?'}번 ${students.find(s => s.id === id)?.name ?? ''}`.trim(),
       leader: leader(students, data.books),
     }, { reset });
     const L = tower.layout;
@@ -107,6 +108,8 @@ export async function startStudent(root, { code, number, data, onLogout }) {
       const li = h(`<li title="${esc(b.title)}${b.note ? ' — ' + esc(b.note) : ''}"><div class="grow" style="flex:1;min-width:0">
         <div class="t1"><b>${esc(b.title)}</b><span class="small muted">${fmtN(b.pages)}쪽 · ${fmtDate(b.created_at)}</span></div>
         <div class="note">${b.note ? esc(b.note) : '&nbsp;'}</div></div><button class="btn small">삭제</button></li>`);
+      li.style.cursor = 'pointer';
+      li.onclick = e => { if (!e.target.closest('button')) showBookNote({ title: b.title, pages: b.pages, who: '나', date: b.created_at, note: b.note }); };
       li.querySelector('button').onclick = async () => {
         if (!await confirmBox(`「${b.title}」 기록을 삭제할까요?`)) return;
         try { await api.deleteMyBook(code, number, b.id); toast('삭제했어요'); await reload(); } catch (err) { toast(errMsg(err)); }
