@@ -36,7 +36,7 @@ export async function startStudent(root, { code, number, data, onLogout }) {
           <h2>${icon('booksIcon')} 읽은 책 쌓기</h2>
           <label class="field"><span>책 제목</span><input class="input" name="title" maxlength="100" required></label>
           <label class="field"><span>읽은 쪽수 (1~3000)</span><input class="input" name="pages" type="number" inputmode="numeric" min="1" max="3000" step="1" required></label>
-          <label class="field"><span>한 줄 느낌 (선택)</span><input class="input" name="note" maxlength="200"></label>
+          <label class="field"><span>한 줄 느낌 (꼭 적어 주세요)</span><input class="input" name="note" maxlength="200" required></label>
           <button class="btn primary" style="width:100%">쌓기!</button>
         </form>
         <div class="frame"><h2>내가 쌓은 책</h2><ul class="booklist" data-x="mine"></ul></div>

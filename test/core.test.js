@@ -88,10 +88,9 @@ test('책 모양은 id로 결정적', () => {
 });
 
 test('확대 슬라이더 왕복과 화면 중심 유지', () => {
-  assert.equal(C.ZOOM_LEVELS.length, 6);
-  assert.equal(C.levelZoom(0), 0.5); assert.equal(C.levelZoom(99), 30); assert.equal(C.levelZoom(-3), 0.5);
-  assert.equal(C.nearestLevel(1), 1); assert.equal(C.nearestLevel(0.3), 0); assert.equal(C.nearestLevel(100), 5);
-  assert.equal(C.nearestLevel(3), 2);   // 2와 5 중 로그로 더 가까운 2
+  assert.ok(Math.abs(C.sliderToZoom(0) - 0.4) < 1e-9);
+  assert.ok(Math.abs(C.sliderToZoom(100) - 60) < 1e-9);
+  assert.equal(C.zoomToSlider(C.sliderToZoom(37)), 37);
   const v1 = { H: 5000, ppm: 10, GROUND: 40 }, v2 = { H: 20000, ppm: 40, GROUND: 40 };
   const f = C.focusMBefore(v1, 1000, 600);
   const st = C.scrollTopAfter(v2, f, 600);
@@ -142,8 +141,10 @@ test('입력 검증과 이스케이프', () => {
   assert.ok(C.validateBook({ title: '  ', pages: 10 }).error);
   assert.ok(C.validateBook({ title: '책책', pages: 0 }).error);
   assert.ok(C.validateBook({ title: '책책', pages: 12.5 }).error);
+  assert.ok(C.validateBook({ title: '책책', pages: 10 }).error);                       // 한 줄 느낌은 필수
+  assert.ok(C.validateBook({ title: '책책', pages: 10, note: '   ' }).error);
   assert.ok(C.validateBook({ title: '책책', pages: 10, note: 'a'.repeat(201) }).error);
-  assert.deepEqual(C.validateBook({ title: ' 모모 ', pages: '300' }), { title: '모모', pages: 300, note: '' });
+  assert.deepEqual(C.validateBook({ title: ' 모모 ', pages: '300', note: ' 재밌다 ' }), { title: '모모', pages: 300, note: '재밌다' });
   assert.equal(C.escapeHtml('<b a="1">&\''), '&lt;b a=&quot;1&quot;&gt;&amp;&#39;');
   assert.equal(C.coverIndex(1), 0); assert.equal(C.coverIndex(9), 0); assert.equal(C.coverIndex(8), 7);
 });

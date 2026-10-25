@@ -1,8 +1,8 @@
 // 책탑 뷰 (명세서 3장)
 // 스크롤 컨테이너는 한 번만 만들고 안쪽 내용만 갈아끼운다 (터치 핀치 유지를 위해).
 import {
-  computeLayout, focusMBefore, scrollTopAfter, clampZoom, nearestLevel, levelZoom, ZOOM_LEVELS, hash,
-  coverIndex, heightM, SIL_OFFSET_RATIO, SIL_GOLD,
+  computeLayout, focusMBefore, scrollTopAfter, clampZoom, sliderToZoom, zoomToSlider, hash,
+  coverIndex, heightM, SIL_OFFSET_RATIO, SIL_GOLD, ZMIN, ZMAX,
 } from './core.js';
 import { getLandmarks } from './landmarks.js';
 import { ASSETS, COVER_COLORS, U, icon } from './assets.js';
@@ -75,7 +75,7 @@ export function createTower(root) {
     <div class="tw-zoom">
       <span class="small muted" style="margin-right:auto">확대</span>
       <button class="btn small" data-z="out" title="축소">－</button>
-      <input type="range" min="0" max="5" step="1" aria-label="확대">
+      <input type="range" min="0" max="100" step="1" aria-label="확대">
       <button class="btn small" data-z="in" title="확대">＋</button>
       <button class="btn small" data-z="all">전체</button>
     </div>`;
@@ -186,7 +186,7 @@ export function createTower(root) {
     else scroller.scrollTop = scrollTopAfter(L.view, focus, viewH);
 
     renderChip();
-    slider.value = nearestLevel(zoom);
+    slider.value = zoomToSlider(zoom);
   }
 
   function renderChip() {
@@ -218,33 +218,24 @@ export function createTower(root) {
     raf = requestAnimationFrame(() => { raf = 0; const r = pendingReset; pendingReset = false; draw({ reset: r }); });
   }
 
-  // 확대 값을 바꾼다 (연속 값도 받지만 화면에 보이는 슬라이더는 가장 가까운 단계를 가리킨다)
   function setZoom(z) {
     zoom = clampZoom(z);
-    slider.value = nearestLevel(zoom);
+    slider.value = zoomToSlider(zoom);
     schedule(false);
   }
-  const setLevel = i => setZoom(levelZoom(i));
-  const snapToLevel = () => setLevel(nearestLevel(zoom));
 
-  // 확대·축소 입력: 버튼·슬라이더·휠은 한 단계씩, 핀치는 손을 떼면 가까운 단계로 맞춘다
+  // 확대·축소 입력
   root.querySelector('.tw-zoom').addEventListener('click', e => {
     const z = e.target.dataset?.z;
-    if (z === 'in') setLevel(nearestLevel(zoom) + 1);
-    else if (z === 'out') setLevel(nearestLevel(zoom) - 1);
+    if (z === 'in') setZoom(zoom * 1.5);
+    else if (z === 'out') setZoom(zoom / 1.5);
     else if (z === 'all') { zoom = 1; schedule(true); }
   });
-  slider.addEventListener('input', () => setLevel(+slider.value));
-  let wheelAcc = 0, wheelAt = 0;
+  slider.addEventListener('input', () => setZoom(sliderToZoom(+slider.value)));
   scroller.addEventListener('wheel', e => {
     if (!e.ctrlKey && !e.metaKey) return;              // 일반 휠은 스크롤
     e.preventDefault();
-    const now = Date.now();
-    if (now - wheelAt > 250) wheelAcc = 0;             // 잠깐 쉬었다 다시 돌리면 새로 센다
-    wheelAt = now; wheelAcc += e.deltaY;
-    if (Math.abs(wheelAcc) < 60) return;               // 트랙패드의 잔 움직임은 모아서 한 단계로
-    setLevel(nearestLevel(zoom) + (wheelAcc < 0 ? 1 : -1));
-    wheelAcc = 0;
+    setZoom(zoom * Math.exp(-e.deltaY * 0.0025));
   }, { passive: false });
   let pinch = null;
   const dist = t => Math.hypot(t[0].clientX - t[1].clientX, t[0].clientY - t[1].clientY);
@@ -256,7 +247,7 @@ export function createTower(root) {
     e.preventDefault();
     setZoom(pinch.z * dist(e.touches) / pinch.d);
   }, { passive: false });
-  scroller.addEventListener('touchend', e => { if (e.touches.length < 2 && pinch) { pinch = null; snapToLevel(); } });
+  scroller.addEventListener('touchend', e => { if (e.touches.length < 2) pinch = null; });
 
   // 랜드마크 이름표를 누르면 설명 카드 (안쪽 내용은 터치를 받지 않지만 이름표만은 받는다)
   scroller.addEventListener('click', e => {
@@ -275,6 +266,7 @@ export function createTower(root) {
       draw({ reset: reset || !layout });
     },
     get layout() { return layout; },
+    zoomRange: [ZMIN, ZMAX],
     /** 돌파 연출: 넘은 랜드마크 실루엣을 번쩍이며 사라지게 */
     flash(lm) {
       return new Promise(res => {
