@@ -17,6 +17,8 @@ export const ASSETS = {
   sky: null,                             // 배경 하늘 (null이면 계단식 색 띠)
   city: 'assets/bg/city.png',            // 120×60, 가로 반복
   cloud: 'assets/bg/cloud.png',          // 24×9
+  cloudSmall: 'assets/bg/cloud_small.png', // 14×7
+  bird: 'assets/bg/bird.png',            // 날갯짓 4장을 가로로 이은 한 줄 (한 장 9×5)
   ground: 'assets/bg/ground.png',        // 16×14, 가로 반복
   // 랜드마크 PNG: assets/landmarks/landmark_{id}.png 파일을 넣고, 그 id를 아래 목록에 적으면 격자 대신 사용
   // 예: landmarkPngs: ['busan', 'daegu83']

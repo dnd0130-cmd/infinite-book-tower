@@ -101,14 +101,32 @@ export function createTower(root) {
 
     // 1. 배경
     parts.push(`<div class="tw-sky" style="background:${skyBackground(L.H)}"></div>`);
-    const cloudGap = 320, nClouds = Math.min(150, Math.floor((L.H - 200) / cloudGap));
+    // 움직이는 하늘: 다시 그려도 끊기지 않도록, 시계 시각에서 계산한 위치(음수 지연)에서 애니메이션을 시작한다
+    const nowS = Date.now() / 1000, travel = width + 230;
+    const phase = (dur, seed) => `animation-duration:${dur.toFixed(1)}s;animation-delay:${(-(((nowS / dur) + seed) % 1) * dur).toFixed(1)}s`;
+    const cloudGap = 200, nClouds = Math.min(200, Math.floor((L.H - 200) / cloudGap));
     for (let i = 0; i < nClouds; i++) {
-      const y = L.groundY - 200 - i * cloudGap - hash('cy' + i) % 120;
-      const x = RULER_W + hash('cx' + i) % Math.max(1, width - RULER_W - 80);
-      const cls = ASSETS.cloud ? '' : ' ph';
-      const bg = ASSETS.cloud ? `background:url(${ASSETS.cloud}) center/100% 100%;` : '';
-      // 구름은 높이마다 크기를 조금씩 다르게 (1~2배)
-      parts.push(`<div class="tw-cloud${cls}" style="left:${x}px;top:${y}px;${bg}${hash('cs' + i) % 2 ? `width:${48 * U}px;height:${18 * U}px;` : ''}"></div>`);
+      const y = L.groundY - 230 - i * cloudGap - hash('cy' + i) % 90;
+      // 작은(먼) 구름은 느리게, 큰(가까운) 구름은 빠르게
+      const kind = hash('cs' + i) % 3;          // 0 작은 구름 / 1 보통 / 2 큰 구름
+      const [src, cw, chh, speed] = kind === 0 ? [ASSETS.cloudSmall, 14, 7, 6] : kind === 1 ? [ASSETS.cloud, 24, 9, 10] : [ASSETS.cloud, 48, 18, 15];
+      const bg = src ? `background:url(${src}) center/100% 100%;` : '';
+      const seed = (hash('cx' + i) % 1000) / 1000;
+      parts.push(`<div class="tw-cloud${src ? '' : ' ph'}" style="top:${y}px;width:${cw * U}px;height:${chh * U}px;${bg}${phase(travel / speed, seed)}"></div>`);
+    }
+    if (ASSETS.bird) {
+      const nBirds = Math.max(2, Math.min(12, Math.floor(L.groundY / 450) + 1));
+      for (let i = 0; i < nBirds; i++) {
+        const y0 = L.groundY - 240 - hash('by' + i) % Math.max(1, L.groundY - 340);
+        const left = hash('bd' + i) % 2 === 1;
+        const speed = 40 + hash('bs' + i) % 30, flap = 0.45 + (hash('bf' + i) % 30) / 100;
+        const seed = (hash('bx' + i) % 1000) / 1000;
+        for (let k = 0; k < (i % 3 === 0 ? 2 : 1); k++) {      // 가끔은 두 마리가 함께
+          const dur = (travel + 60) / speed, dy = k * 16, ds = k * (14 / (travel + 60));
+          parts.push(`<div class="tw-fly" style="top:${y0 + dy}px;${phase(dur, seed - ds)}${left ? ';animation-direction:reverse' : ''}">`
+            + `<div class="tw-bird" style="background-image:url(${ASSETS.bird});animation-duration:${flap}s${left ? ';transform:scaleX(-1)' : ''}"></div></div>`);
+        }
+      }
     }
     parts.push(`<div class="tw-city" style="bottom:40px;background:url(${cityTileUrl()}) repeat-x bottom left/${120 * U}px ${60 * U}px"></div>`);
 
@@ -160,6 +178,7 @@ export function createTower(root) {
     parts.push(`<div class="tw-ground" style="${groundBg}z-index:3"></div>`);
 
     content.style.height = L.H + 'px';
+    content.style.setProperty('--span', width + 'px');       // 구름·새가 흘러가는 거리
     content.innerHTML = parts.join('');
 
     // 스크롤: 처음/전환 때는 탑 꼭대기를 위쪽에, 그 외에는 보던 높이 유지

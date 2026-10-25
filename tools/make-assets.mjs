@@ -158,7 +158,29 @@ save('ui/books.png', fromGrid([
   '.KKKKKKKKKKK',
 ], { K: INK, W: '#fffaf0', w: '#e0d3b0', r: '#f08a87', R: '#d9534f', b: '#8fa0ea', B: '#5a6fd6', Y: '#f4c542' }));
 
+// 5-2) 새: 날갯짓 4장(올림·중간·내림·중간)을 가로로 이은 한 줄 그림. 한 장 9×5
+{
+  const frames = [
+    ['K.......K', 'KK.....KK', '.KK.K.KK.', '..KKKKK..', '....K....'],
+    ['.........', 'KKK...KKK', '..KKKKK..', '...KKK...', '.........'],
+    ['.........', '..KKKKK..', '.KK.K.KK.', 'KK..K..KK', 'K.......K'],
+    ['.........', 'KKK...KKK', '..KKKKK..', '...KKK...', '.........'],
+  ];
+  const c = canvas(36, 5);
+  frames.forEach((rows, f) => rows.forEach((r, y) => [...r].forEach((ch, x) => { if (ch === 'K') c.set(f * 9 + x, y, '#2b3a55'); })));
+  save('bg/bird.png', c);
+}
+
 // 6) 배경: 구름, 땅, 도시
+save('bg/cloud_small.png', fromGrid([
+  '...KKKK.......',
+  '..KWWWWK.KKK..',
+  '.KWWWWWWKWWWK.',
+  'KWWWWWWWWWWWWK',
+  'KWWWWWWWWWBBBK',
+  '.KBBBBBBBBBBK.',
+  '..KKKKKKKKKK..',
+], { K: '#9fb8d8', W: '#ffffff', B: '#dbe9f7' }));
 save('bg/cloud.png', fromGrid([
   '........KKKKK...........',
   '.......KWWWWWK...KKKK...',

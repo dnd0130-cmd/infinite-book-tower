@@ -127,8 +127,15 @@ h2 { font-size: 15px; margin: 0 0 8px; color: #6a3a1a; display: flex; align-item
 .tower .content { position: relative; width: 100%; pointer-events: none; overflow: hidden; }
 .tower .content > * { position: absolute; }
 .tw-sky { left: 0; right: 0; top: 0; bottom: 0; }
-.tw-cloud { width: calc(var(--u) * 24); height: calc(var(--u) * 9); }
+.tw-cloud { left: 0; width: calc(var(--u) * 24); height: calc(var(--u) * 9); animation: tw-drift linear infinite; will-change: transform; }
 .tw-cloud.ph { background: #fff; border-radius: 40%; }
+.tw-fly { left: 0; z-index: 1; animation: tw-fly linear infinite; will-change: transform; }
+.tw-bird { width: calc(var(--u) * 9); height: calc(var(--u) * 5); background-size: calc(var(--u) * 36) calc(var(--u) * 5);
+  background-repeat: no-repeat; animation: tw-flap steps(4) infinite; }
+@keyframes tw-drift { from { transform: translateX(-170px); } to { transform: translateX(var(--span)); } }
+@keyframes tw-fly { from { transform: translateX(-60px); } to { transform: translateX(var(--span)); } }
+@keyframes tw-flap { from { background-position: 0 0; } to { background-position: calc(var(--u) * -36) 0; } }
+@media (prefers-reduced-motion: reduce) { .tw-cloud, .tw-fly, .tw-bird { animation: none; } .tw-fly { display: none; } .tw-cloud { left: 30%; } }
 .tw-city { left: 0; right: 0; height: calc(var(--u) * 60); opacity: .55; }
 .tw-ground { left: 0; right: 0; bottom: 0; height: 40px; background: #5fae3e; }
 .tw-ruler { left: 0; top: 0; bottom: 40px; width: 52px; border-right: var(--u) solid var(--ink); background: rgba(255, 248, 225, .55); }
