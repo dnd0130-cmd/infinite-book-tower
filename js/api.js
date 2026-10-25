@@ -3,7 +3,7 @@
 import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
 import { genCode } from './core.js';
 
-export const DEMO = new URLSearchParams(location.search).has('demo');
+export const DEMO = window.__BT_DEMO__ === true || new URLSearchParams(location.search).has('demo');
 
 function realApi() {
   const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
