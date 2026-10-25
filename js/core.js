@@ -2,7 +2,9 @@
 // DOM이나 스타일을 건드리지 않는 순수 함수만 둔다. 화면은 이 결과를 받아서 그린다.
 import { getLandmarks } from './landmarks.js';
 
-export const ZMIN = 0.4, ZMAX = 60, GROUND = 40;
+// 확대 단계: 너무 잘게 나누지 않고 6단계만 쓴다 (0.5배 ~ 30배)
+export const ZOOM_LEVELS = [0.5, 1, 2, 5, 12, 30];
+export const ZMIN = ZOOM_LEVELS[0], ZMAX = ZOOM_LEVELS.at(-1), GROUND = 40;
 export const TICK_STEPS = [0.5, 1, 2, 5, 10, 20, 50, 100, 200, 500, 1000, 2000, 5000];
 export const OUTLINE_RGB = [43, 26, 16];
 export const SIL_OFFSET_RATIO = 0.7;   // 실루엣을 책탑 폭의 몇 배만큼 오른쪽으로 치우칠지
@@ -10,8 +12,10 @@ export const SIL_COLOR = '#5a6aa8';
 export const SIL_GOLD = '#f4c542';
 export const SIL_FAR = '#9aa0ad';
 
-export const sliderToZoom = v => ZMIN * Math.pow(ZMAX / ZMIN, v / 100);
-export const zoomToSlider = z => Math.round(Math.log(z / ZMIN) / Math.log(ZMAX / ZMIN) * 100);
+// 지금 확대 값에서 가장 가까운 단계 번호 (로그 거리)
+export const nearestLevel = z => ZOOM_LEVELS.reduce((best, v, i) =>
+  Math.abs(Math.log(z / v)) < Math.abs(Math.log(z / ZOOM_LEVELS[best])) ? i : best, 0);
+export const levelZoom = i => ZOOM_LEVELS[Math.min(ZOOM_LEVELS.length - 1, Math.max(0, i))];
 export const clampZoom = z => Math.min(ZMAX, Math.max(ZMIN, z));
 export const hash = s => { let h = 0; for (const c of String(s)) h = (h * 31 + c.charCodeAt(0)) | 0; return Math.abs(h); };
 

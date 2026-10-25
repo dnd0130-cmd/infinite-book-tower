@@ -88,9 +88,10 @@ test('책 모양은 id로 결정적', () => {
 });
 
 test('확대 슬라이더 왕복과 화면 중심 유지', () => {
-  assert.ok(Math.abs(C.sliderToZoom(0) - 0.4) < 1e-9);
-  assert.ok(Math.abs(C.sliderToZoom(100) - 60) < 1e-9);
-  assert.equal(C.zoomToSlider(C.sliderToZoom(37)), 37);
+  assert.equal(C.ZOOM_LEVELS.length, 6);
+  assert.equal(C.levelZoom(0), 0.5); assert.equal(C.levelZoom(99), 30); assert.equal(C.levelZoom(-3), 0.5);
+  assert.equal(C.nearestLevel(1), 1); assert.equal(C.nearestLevel(0.3), 0); assert.equal(C.nearestLevel(100), 5);
+  assert.equal(C.nearestLevel(3), 2);   // 2와 5 중 로그로 더 가까운 2
   const v1 = { H: 5000, ppm: 10, GROUND: 40 }, v2 = { H: 20000, ppm: 40, GROUND: 40 };
   const f = C.focusMBefore(v1, 1000, 600);
   const st = C.scrollTopAfter(v2, f, 600);

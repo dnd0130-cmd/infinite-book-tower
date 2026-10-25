@@ -230,3 +230,7 @@ table.grid td.num { text-align: right; }
 .or { display: flex; align-items: center; gap: 8px; margin: 10px 0; color: var(--muted); font-family: var(--font-s); font-size: 12px; }
 .or::before, .or::after { content: ''; flex: 1; height: var(--u); background: #cbb98f; }
 .gmark { color: #4285f4; text-shadow: 1px 0 0 currentColor; margin-right: 2px; }
+
+/* 랜드마크 이름표는 눌러서 설명을 본다 */
+.tw-lm-label { pointer-events: auto; cursor: pointer; }
+.tw-lm-label:hover { filter: brightness(1.25); }
