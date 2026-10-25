@@ -53,7 +53,7 @@ export function createApi() {
 
   const iso = ts => (ts?.toDate ? ts.toDate() : ts ? new Date(ts) : new Date()).toISOString();
   const mapClass = d => { const x = d.data(); return { id: d.id, code: d.id, name: x.name, goal_m: x.goal_m, cm_per_page: x.cm_per_page, created_at: iso(x.created_at) }; };
-  const mapStudent = d => { const x = d.data(); return { id: d.id, number: x.number, name: x.name }; };
+  const mapStudent = d => { const x = d.data(); return { id: d.id, number: x.number, name: x.name, left: x.left === true }; };
   const mapBook = d => { const x = d.data({ serverTimestamps: 'estimate' }); return { id: d.id, student_id: String(x.student_number), title: x.title, pages: x.pages, note: x.note ?? '', created_at: iso(x.created_at) }; };
   const sub = (code, name) => collection(db, 'classes', code, name);
   const normCode = c => String(c).trim().toUpperCase();
@@ -85,6 +85,7 @@ export function createApi() {
       const st = await watch(code);
       const me = st.students.find(s => s.number === Number(number));
       if (!st.cls || !me) return null;
+      if (me.left) throw new Error('이 번호는 지금 쓸 수 없어요. 선생님께 물어보세요');
       return { cls: st.cls, me, students: st.students, books: st.books };
     }),
     addBook: wrap(async (code, number, b) => {
@@ -121,13 +122,18 @@ export function createApi() {
     }),
     updateClass: wrap(async (id, patch) => { await updateDoc(doc(db, 'classes', id), patch); }),
     listStudents: wrap(async classId => (await getDocs(sub(classId, 'students'))).docs.map(mapStudent).sort((a, b) => a.number - b.number)),
-    addStudents: wrap(async (classId, names) => {
-      const cur = (await getDocs(sub(classId, 'students'))).docs.map(d => d.data().number);
-      let n = Math.max(0, ...cur);
+    // entries: [{ number, name }] — 번호는 화면에서 정해 보낸다. 그 사이 같은 번호가 생겼으면 덮어쓰지 않고 멈춘다
+    addStudents: wrap(async (classId, entries) => {
+      const cur = new Set((await getDocs(sub(classId, 'students'))).docs.map(d => d.data().number));
+      const dup = entries.find(e => cur.has(e.number));
+      if (dup) throw new Error(`${dup.number}번은 이미 있어요`);
       const batch = writeBatch(db);
-      for (const name of names) { n++; batch.set(doc(db, 'classes', classId, 'students', String(n)), { number: n, name }); }
+      for (const e of entries) batch.set(doc(db, 'classes', classId, 'students', String(e.number)), { number: e.number, name: e.name });
       await batch.commit();
     }),
+    // 전학 처리(left=true)/복귀: 기록은 지우지 않는다
+    setStudentLeft: wrap(async (classId, id, left) => { await updateDoc(doc(db, 'classes', classId, 'students', id), { left: !!left }); }),
+    renameStudent: wrap(async (classId, id, name) => { await updateDoc(doc(db, 'classes', classId, 'students', id), { name }); }),
     deleteStudent: wrap(async (classId, id) => {
       const mine = await getDocs(query(sub(classId, 'books'), where('student_number', '==', Number(id))));
       const batch = writeBatch(db);

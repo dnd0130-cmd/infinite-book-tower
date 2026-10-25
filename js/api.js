@@ -38,9 +38,10 @@ function demoApi() {
   return {
     async studentData(code, number) {
       const f = find(code, number); if (!f) return wait(null);
+      if (f.s.left) throw new Error('이 번호는 지금 쓸 수 없어요. 선생님께 물어보세요');
       return wait({
         cls: f.c, me: f.s,
-        students: students.filter(s => s.class_id === f.c.id).map(({ id, number, name }) => ({ id, number, name })),
+        students: students.filter(s => s.class_id === f.c.id).map(({ id, number, name, left }) => ({ id, number, name, left: !!left })),
         books: books.filter(b => b.class_id === f.c.id),
       });
     },
@@ -62,11 +63,12 @@ function demoApi() {
     async createClass(name) { const c = { id: 'c' + uid(), name, code: genCode(), goal_m: 500, cm_per_page: 1, created_at: new Date().toISOString() }; classes.push(c); return wait(c); },
     async updateClass(id, patch) { Object.assign(classes.find(c => c.id === id), patch); return wait(null); },
     listStudents: async classId => wait(students.filter(s => s.class_id === classId).sort((a, b) => a.number - b.number)),
-    async addStudents(classId, ns) {
-      const max = Math.max(0, ...students.filter(s => s.class_id === classId).map(s => s.number));
-      ns.forEach((name, i) => students.push({ id: 's' + uid(), class_id: classId, number: max + i + 1, name }));
+    async addStudents(classId, entries) {
+      entries.forEach(e => students.push({ id: 's' + uid(), class_id: classId, number: e.number, name: e.name }));
       return wait(null);
     },
+    async setStudentLeft(_classId, id, left) { students.find(s => s.id === id).left = !!left; return wait(null); },
+    async renameStudent(_classId, id, name) { students.find(s => s.id === id).name = name; return wait(null); },
     async deleteStudent(_classId, id) {
       students.splice(students.findIndex(s => s.id === id), 1);
       for (let i = books.length - 1; i >= 0; i--) if (books[i].student_id === id) books.splice(i, 1);

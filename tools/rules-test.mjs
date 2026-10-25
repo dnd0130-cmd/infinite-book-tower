@@ -99,3 +99,26 @@ test('다른 컬렉션은 모두 막혀 있다', async () => {
   await assertFails(getDoc(doc(anon(), 'users', 'x')));
   await assertFails(setDoc(doc(teacher(T1), 'users', 'x'), { a: 1 }));
 });
+
+test('전학 처리: 주인 선생님만 바꾸고, 전학 간 번호로는 책을 쌓을 수 없다', async () => {
+  const st = db => doc(db, 'classes', CODE, 'students', '1');
+  const books = db => collection(db, 'classes', CODE, 'books');
+  await assertSucceeds(addDoc(books(anon()), bookDoc()));                                // 전학 전에는 쌓임
+  await assertFails(updateDoc(st(anon()), { left: true }));                              // 익명은 못 바꿈
+  await assertFails(updateDoc(st(teacher(T2)), { left: true }));                         // 다른 선생님도 못 바꿈
+  await assertFails(updateDoc(st(teacher(T1)), { left: 'yes' }));                        // 참/거짓만
+  await assertSucceeds(updateDoc(st(teacher(T1)), { left: true }));
+  await assertFails(addDoc(books(anon()), bookDoc()));                                   // 전학 간 번호로는 쌓기 불가
+  await assertSucceeds(getDocs(books(anon())));                                          // 기존 책은 계속 읽힘
+  await assertSucceeds(updateDoc(st(teacher(T1)), { left: false }));                     // 복귀
+  await assertSucceeds(addDoc(books(anon()), bookDoc()));
+});
+
+test('이름 고치기는 주인 선생님만', async () => {
+  const st = db => doc(db, 'classes', CODE, 'students', '1');
+  await assertSucceeds(updateDoc(st(teacher(T1)), { name: '김하늘2' }));
+  await assertFails(updateDoc(st(teacher(T2)), { name: '가로채기' }));
+  await assertFails(updateDoc(st(anon()), { name: '익명' }));
+  await assertFails(updateDoc(st(teacher(T1)), { name: ' ' }));
+  await assertFails(updateDoc(st(teacher(T1)), { number: 7 }));                          // 번호는 문서 주소와 같아야 함
+});

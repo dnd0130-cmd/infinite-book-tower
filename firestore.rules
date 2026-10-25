@@ -51,7 +51,8 @@ service cloud.firestore {
       match /students/{number} {
         allow read: if true;
         allow create, update: if isTeacherOf(code)
-          && request.resource.data.keys().hasOnly(['number', 'name'])
+          && request.resource.data.keys().hasOnly(['number', 'name', 'left'])
+          && (!('left' in request.resource.data) || request.resource.data.left is bool)
           && request.resource.data.number is int
           && string(request.resource.data.number) == number
           && request.resource.data.number >= 1 && request.resource.data.number <= 9999
@@ -61,10 +62,11 @@ service cloud.firestore {
 
       match /books/{bookId} {
         allow read: if true;
-        // 반 코드를 아는 사람이 책을 쌓는다. 반에 있는 번호여야 하고, 쪽수·글자 수·한 줄 느낌(필수)을 검사한다.
+        // 반 코드를 아는 사람이 책을 쌓는다. 반에 있고 전학 처리되지 않은 번호여야 하고, 쪽수·글자 수·한 줄 느낌(필수)을 검사한다.
         allow create: if request.resource.data.keys().hasOnly(['student_number', 'title', 'pages', 'note', 'created_at'])
           && request.resource.data.student_number is int
           && exists(/databases/$(database)/documents/classes/$(code)/students/$(string(request.resource.data.student_number)))
+          && get(/databases/$(database)/documents/classes/$(code)/students/$(string(request.resource.data.student_number))).data.get('left', false) != true
           && nonBlank(request.resource.data.title) && request.resource.data.title.size() <= 100
           && request.resource.data.pages is int && request.resource.data.pages >= 1 && request.resource.data.pages <= 3000
           && nonBlank(request.resource.data.note) && request.resource.data.note.size() <= 200

@@ -152,7 +152,7 @@ export function statsByStudent(students, books) {
   return [...m.values()];
 }
 export function leader(students, books) {
-  const arr = statsByStudent(students, books).filter(r => r.pages > 0);
+  const arr = statsByStudent(students, books).filter(r => r.pages > 0 && !r.s.left);   // 전학 간 학생은 후보에서 뺀다
   if (!arr.length) return null;
   const mx = Math.max(...arr.map(r => r.pages));
   return { names: arr.filter(r => r.pages === mx).map(r => r.s.name), pages: mx };
@@ -160,6 +160,37 @@ export function leader(students, books) {
 
 // 이상 기록 판별 (교사 점검 화면)
 export const suspicious = b => b.pages >= 800 || b.title.trim().length < 2 || /^(.)\1+$/u.test(b.title.trim());
+
+/**
+ * 학생 일괄 등록 글 해석. 한 줄에 한 명: "이름" 또는 "번호 이름" (예: "3 박서연", "3. 박서연").
+ *  - 번호가 없는 줄은 (이미 있는 번호와 이번에 쓴 번호 중 가장 큰 것)+1부터 차례로 붙인다. 빈 번호를 메우지 않는다
+ *    (전학 간 학생의 번호를 새 학생이 물려받지 않게).
+ *  - 이미 있는 번호, 같은 번호 중복, 1~9999 밖의 번호는 오류.
+ * 반환: { entries: [{ number, name }] } 또는 { error }
+ */
+export function parseStudentLines(text, existingNumbers = []) {
+  const taken = new Set(existingNumbers);
+  const rows = [];
+  for (const raw of String(text ?? '').split('\n')) {
+    const line = raw.trim();
+    if (!line) continue;
+    const m = line.match(/^(\d{1,5})(?:\s*[.)\]:,-]\s*|\s+)(\S.*)$/u);
+    rows.push(m ? { number: Number(m[1]), name: m[2].trim().slice(0, 30) } : { number: null, name: line.slice(0, 30) });
+  }
+  if (!rows.length) return { error: '이름을 한 줄에 한 명씩 적어 주세요' };
+  const used = new Set();
+  for (const r of rows) {
+    if (r.number == null) continue;
+    if (r.number < 1 || r.number > 9999) return { error: `번호는 1~9999 사이로 적어 주세요 (${r.number})` };
+    if (taken.has(r.number)) return { error: `${r.number}번은 이미 있어요 (${r.name})` };
+    if (used.has(r.number)) return { error: `${r.number}번이 두 번 적혀 있어요` };
+    used.add(r.number);
+  }
+  let next = Math.max(0, ...taken, ...used) + 1;
+  for (const r of rows) if (r.number == null) r.number = next++;
+  if (rows.some(r => r.number > 9999)) return { error: '번호가 9999를 넘어요' };
+  return { entries: rows };
+}
 
 // 반 코드: 영문 대문자+숫자 6자, 헷갈리는 글자(I O 0 1) 제외
 export const CODE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';

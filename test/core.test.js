@@ -148,3 +148,30 @@ test('입력 검증과 이스케이프', () => {
   assert.equal(C.escapeHtml('<b a="1">&\''), '&lt;b a=&quot;1&quot;&gt;&amp;&#39;');
   assert.equal(C.coverIndex(1), 0); assert.equal(C.coverIndex(9), 0); assert.equal(C.coverIndex(8), 7);
 });
+
+test('학생 줄 해석: 번호 있는 줄·없는 줄, 빈 번호는 메우지 않는다', () => {
+  const r = C.parseStudentLines('김하늘\n\n이도윤\n7 박서연\n3. 최지호\n정하은', [1, 2, 4, 5]);
+  assert.deepEqual(r.entries, [
+    { number: 8, name: '김하늘' }, { number: 9, name: '이도윤' }, { number: 7, name: '박서연' }, { number: 3, name: '최지호' }, { number: 10, name: '정하은' },
+  ]);
+  // 아무것도 없으면 1번부터
+  assert.deepEqual(C.parseStudentLines('가\n나').entries.map(e => e.number), [1, 2]);
+  // 이미 있는 번호, 같은 번호 두 번, 범위 밖, 빈 입력
+  assert.match(C.parseStudentLines('2 새친구', [1, 2, 3]).error, /2번은 이미/);
+  assert.match(C.parseStudentLines('5 가\n5 나').error, /두 번/);
+  assert.match(C.parseStudentLines('0 가').error, /1~9999/);
+  assert.match(C.parseStudentLines('10000 가').error, /1~9999|번호/);
+  assert.ok(C.parseStudentLines('   \n ').error);
+  // 이름이 숫자로 시작해도 구분자(공백·마침표)가 있을 때만 번호로 본다
+  assert.equal(C.parseStudentLines('3반장').entries[0].name, '3반장');
+  assert.equal(C.parseStudentLines('12 홍길동').entries[0].number, 12);
+  // 이름은 30자까지
+  assert.equal(C.parseStudentLines('가'.repeat(40)).entries[0].name.length, 30);
+});
+
+test('다독왕: 전학 간 학생은 후보에서 뺀다 (책은 그대로)', () => {
+  const st = [{ id: 'a', name: '가' }, { id: 'b', name: '나', left: true }];
+  const bk = [book('1', 500, undefined, 'b'), book('2', 100, undefined, 'a')];
+  assert.deepEqual(C.leader(st, bk), { names: ['가'], pages: 100 });
+  assert.equal(C.leader([{ id: 'b', name: '나', left: true }], [book('3', 50, undefined, 'b')]), null);
+});
