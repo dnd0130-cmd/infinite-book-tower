@@ -21,6 +21,8 @@ function realApi() {
       const d = await sb.auth.signUp({ email, password }).then(ok);
       return { needsConfirm: !d.session };
     },
+    // 구글 로그인: 구글 화면으로 이동했다가 이 주소로 돌아온다 (돌아오면 로그인된 상태)
+    signInGoogle: () => sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } }).then(ok),
     signOut: () => sb.auth.signOut(),
     listClasses: () => sb.from('classes').select('*').order('created_at').then(ok),
     async createClass(name) {
@@ -91,6 +93,7 @@ function demoApi() {
     user: async () => user,
     signIn: async email => { user = { email }; },
     signUp: async email => { user = { email }; return { needsConfirm: false }; },
+    signInGoogle: async () => { user = { email: 'teacher@gmail.com' }; },
     signOut: async () => { user = null; },
     listClasses: async () => wait(classes),
     async createClass(name) { const c = { id: 'c' + uid(), name, code: genCode(), goal_m: 500, cm_per_page: 1, created_at: new Date().toISOString() }; classes.push(c); return wait(c); },

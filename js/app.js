@@ -35,6 +35,8 @@ function showLogin() {
         <label class="field"><span>이메일</span><input class="input" name="email" type="email" required autocomplete="username"></label>
         <label class="field"><span>비밀번호</span><input class="input" name="pw" type="password" required minlength="6" autocomplete="current-password"></label>
         <div class="row"><button class="btn blue grow" data-a="in">로그인</button><button class="btn grow" data-a="up">가입</button></div>
+        <div class="or"><span>또는</span></div>
+        <button type="button" class="btn" style="width:100%" data-google><span class="gmark">G</span> 구글로 로그인</button>
       </form>
     </div>
     <div class="city" style="background:url(${cityTileUrl()}) repeat-x bottom left/${120 * U}px ${60 * U}px"></div>
@@ -44,6 +46,13 @@ function showLogin() {
     e.preventDefault();
     const f = e.target;
     await enterStudent(f.code.value.trim().toUpperCase(), Number(f.number.value), true);
+  };
+  $('[data-google]', root).onclick = async () => {
+    try {
+      await api.signInGoogle();
+      if (DEMO) { const user = await api.user(); if (user) startTeacher(root, { user, onLogout: showLogin }); }
+      // 실제로는 구글 화면으로 이동하므로 여기서 더 할 일이 없다
+    } catch (err) { toast(errMsg(err)); }
   };
   let action = 'in';
   $('[data-f="teacher"]', root).addEventListener('click', e => { if (e.target.dataset?.a) action = e.target.dataset.a; });
@@ -83,8 +92,17 @@ async function enterStudent(code, number, fromForm) {
   }
 }
 
+// 구글 로그인에서 돌아왔는데 오류가 있으면 알려 준다
+function oauthError() {
+  const q = new URLSearchParams(location.hash.slice(1) || location.search);
+  const m = q.get('error_description');
+  return m ? m.replace(/\+/g, ' ') : null;
+}
+
 async function boot() {
   await preloadLandmarkPngs();
+  const oerr = oauthError();
+  if (oerr) toast(/not.*allowed|access_denied/i.test(oerr) ? '이 구글 계정은 아직 사용할 수 없어요' : oerr);
   try {
     const user = await api.user();
     if (user) return startTeacher(root, { user, onLogout: showLogin });

@@ -142,6 +142,8 @@ h2 { font-size: 15px; margin: 0 0 8px; color: #6a3a1a; display: flex; align-item
 .tw-tick { left: 38px; width: 14px; height: 3px; background: var(--ink); }
 .tw-tick-label { left: 2px; width: 35px; font-family: var(--font-s); font-size: 12px; text-align: right; transform: translateY(-50%); line-height: 1; }
 .tw-sil { image-rendering: pixelated; }
+/* 눈금은 랜드마크 그림 앞에 둔다 (그림이 숫자를 가리지 않게) */
+.tw-ruler, .tw-tick, .tw-tick-label { z-index: 3; }
 .tw-sil.flash { animation: silflash .9s steps(2) forwards; }
 @keyframes silflash { 0%,40% { filter: brightness(0) invert(1); } 60% { filter: none; } 100% { filter: brightness(0) invert(1); opacity: 0; } }
 .tw-lm-line { left: 52px; right: 0; height: 0; border-top: var(--u) dashed var(--lm); }
@@ -223,3 +225,8 @@ table.grid td.num { text-align: right; }
   .tw-chip, .tw-leader { font-family: var(--font-s); font-size: 12px; }
   .tw-zoom > span { display: none; }
 }
+
+/* 로그인: 구분선과 구글 표시 */
+.or { display: flex; align-items: center; gap: 8px; margin: 10px 0; color: var(--muted); font-family: var(--font-s); font-size: 12px; }
+.or::before, .or::after { content: ''; flex: 1; height: var(--u); background: #cbb98f; }
+.gmark { color: #4285f4; text-shadow: 1px 0 0 currentColor; margin-right: 2px; }

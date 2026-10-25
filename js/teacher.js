@@ -176,16 +176,15 @@ export async function startTeacher(root, { user, onLogout }) {
       <h2>설정</h2>
       <label class="field"><span>학급 이름</span><input class="input" name="cname" maxlength="50" required value="${esc(cls.name)}"></label>
       <label class="field"><span>우리 반 목표 높이 (m)</span><input class="input" name="goal" type="number" min="1" step="any" required value="${cls.goal_m}"></label>
-      <label class="field"><span>1쪽당 높이 (cm) — 기본 1</span><input class="input" name="cm" type="number" min="0.01" step="any" required value="${cls.cm_per_page}"></label>
       <p class="small muted">학생 입장용 반 코드: <b class="code" style="padding:0 6px">${esc(cls.code)}</b></p>
       <button class="btn primary">저장</button></form>`;
     X('setform').onsubmit = async e => {
       e.preventDefault();
-      const f = e.target, name = f.cname.value.trim(), goal_m = Number(f.goal.value), cm_per_page = Number(f.cm.value);
-      if (!name || !(goal_m > 0) || !(cm_per_page > 0)) return toast('값을 다시 확인해 주세요');
+      const f = e.target, name = f.cname.value.trim(), goal_m = Number(f.goal.value);
+      if (!name || !(goal_m > 0)) return toast('값을 다시 확인해 주세요');
       try {
-        await api.updateClass(cls.id, { name, goal_m, cm_per_page });
-        Object.assign(cls, { name, goal_m, cm_per_page });
+        await api.updateClass(cls.id, { name, goal_m });
+        Object.assign(cls, { name, goal_m });
         toast('저장했어요');
         await reload();
       } catch (err) { toast(errMsg(err)); }
