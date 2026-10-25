@@ -187,9 +187,18 @@ input[type=range]::-moz-range-thumb { width: calc(var(--u) * 7); height: calc(va
 /* ── 패널 내용 ── */
 .stat { display: flex; justify-content: space-between; gap: 8px; }
 .stat b { color: #6a3a1a; text-shadow: 1px 0 0 currentColor; }
-.booklist { list-style: none; margin: 0; padding: 0; max-height: 320px; overflow-y: auto; }
-.booklist li { border-bottom: var(--u) dotted #cbb98f; padding: 6px 0; display: flex; gap: 8px; align-items: flex-start; }
-.booklist .note { font-family: var(--font-s); font-size: 12px; color: var(--muted); }
+/* 내가 쌓은 책: 한 줄 높이를 고정하고 8권만 보이게, 그 이상은 스크롤 */
+.booklist { --row: 52px; list-style: none; margin: 0; padding: 0; max-height: calc(var(--row) * 8); overflow-y: auto; }
+.booklist li { height: var(--row); border-bottom: var(--u) dotted #cbb98f; padding: 4px 0; display: flex; gap: 8px; align-items: center; }
+.booklist .t1 { display: flex; gap: 6px; align-items: baseline; min-width: 0; white-space: nowrap; }
+.booklist .t1 b { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.booklist .t1 .small { flex: none; }
+.booklist .note { font-family: var(--font-s); font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+/* 도트 느낌의 스크롤바 */
+.booklist { scrollbar-width: thin; scrollbar-color: #8a5a32 #ead29a; }
+.booklist::-webkit-scrollbar { width: calc(var(--u) * 3); }
+.booklist::-webkit-scrollbar-track { background: #ead29a; border-left: var(--u) solid var(--ink); }
+.booklist::-webkit-scrollbar-thumb { background: #c9772e; border: 1px solid var(--ink); }
 
 .dex { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 4px; }
 .dex-cell { border-image-source: url('../assets/ui/panel-white.png'); text-align: center; padding: 2px; font-family: var(--font-s); font-size: 12px;

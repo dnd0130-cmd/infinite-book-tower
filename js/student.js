@@ -104,8 +104,9 @@ export async function startStudent(root, { code, number, data, onLogout }) {
     const ul = X('mine');
     ul.innerHTML = mine.length ? '' : '<li class="muted">아직 쌓은 책이 없어요</li>';
     for (const b of sortBooks(mine).reverse()) {
-      const li = h(`<li><div class="grow" style="flex:1;min-width:0"><b>${esc(b.title)}</b> <span class="small muted">${fmtN(b.pages)}쪽 · ${fmtDate(b.created_at)}</span>
-        ${b.note ? `<div class="note">${esc(b.note)}</div>` : ''}</div><button class="btn small">삭제</button></li>`);
+      const li = h(`<li title="${esc(b.title)}${b.note ? ' — ' + esc(b.note) : ''}"><div class="grow" style="flex:1;min-width:0">
+        <div class="t1"><b>${esc(b.title)}</b><span class="small muted">${fmtN(b.pages)}쪽 · ${fmtDate(b.created_at)}</span></div>
+        <div class="note">${b.note ? esc(b.note) : '&nbsp;'}</div></div><button class="btn small">삭제</button></li>`);
       li.querySelector('button').onclick = async () => {
         if (!await confirmBox(`「${b.title}」 기록을 삭제할까요?`)) return;
         try { await api.deleteMyBook(code, number, b.id); toast('삭제했어요'); await reload(); } catch (err) { toast(errMsg(err)); }
