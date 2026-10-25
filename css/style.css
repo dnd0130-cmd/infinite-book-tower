@@ -245,12 +245,11 @@ table.grid td.num { text-align: right; }
 .tw-lm-label { pointer-events: auto; cursor: pointer; }
 .tw-lm-label:hover { filter: brightness(1.25); }
 
-/* 한 줄 느낌 카드: 화면 아래에 5초 */
+/* 한 줄 느낌 카드: 화면 아래에 두고 X로 닫는다 (카드 자체는 눌림을 막지 않음) */
 .note-card { position: fixed; left: 50%; bottom: 20px; transform: translateX(-50%); z-index: 40; width: min(420px, calc(100% - 24px));
-  border-image-source: url('../assets/ui/panel-yellow.png'); pointer-events: none; padding: 6px 12px 12px; animation: nc-in .15s steps(3); }
-.nc-title { font-family: 'Galmuri11'; font-weight: 700; font-size: 16px; overflow-wrap: anywhere; }
+  border-image-source: url('../assets/ui/panel-yellow.png'); pointer-events: none; padding: 6px 12px 10px; animation: nc-in .15s steps(3); }
+.nc-title { font-family: 'Galmuri11'; font-weight: 700; font-size: 16px; overflow-wrap: anywhere; padding-right: 34px; }
+.nc-x { position: absolute; top: 4px; right: 4px; pointer-events: auto; padding: 0 8px; line-height: 1.3; }
 .nc-note { margin-top: 6px; overflow-wrap: anywhere; line-height: 1.5; }
-.nc-bar { position: absolute; left: 0; right: 0; bottom: 0; height: calc(var(--u) * 1.5); background: var(--accent); transform-origin: left; animation: nc-run 5s linear forwards; }
-@keyframes nc-run { from { transform: scaleX(1); } to { transform: scaleX(0); } }
 @keyframes nc-in { from { opacity: 0; transform: translate(-50%, 12px); } to { opacity: 1; transform: translate(-50%, 0); } }
 @media (prefers-reduced-motion: reduce) { .note-card { animation: none; } }

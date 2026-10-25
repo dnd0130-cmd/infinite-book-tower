@@ -47,10 +47,9 @@ function openModal(inner) {
 }
 
 /**
- * 책 한 권의 한 줄 느낌을 화면 아래쪽에 5초 동안 보여 준다 (다른 책을 누르면 바로 바뀜).
+ * 책 한 권의 한 줄 느낌을 화면 아래쪽에 보여 준다. X 버튼이나 Esc로 닫고, 다른 책을 누르면 바로 바뀐다.
  * note가 null이면 '볼 수 없음', 빈 글이면 '적지 않음'으로 안내한다.
  */
-let noteTimer;
 export function showBookNote({ title, pages, who, date, note }, onHide) {
   document.querySelector('.note-card')?.dispatchEvent(new Event('hide'));   // 이전 카드 정리
   const text = note == null ? '<span class="muted">한 줄 느낌은 쓴 친구와 선생님만 볼 수 있어요</span>'
@@ -58,11 +57,13 @@ export function showBookNote({ title, pages, who, date, note }, onHide) {
   const card = h(`<div class="note-card frame" role="status">
     <div class="nc-title">${esc(title)}</div>
     <div class="small muted">${esc(who)} · ${fmtN(pages)}쪽${date ? ' · ' + fmtDate(date) : ''}</div>
-    <div class="nc-note">${text}</div><i class="nc-bar"></i></div>`);
+    <div class="nc-note">${text}</div><button class="btn small nc-x" aria-label="닫기" title="닫기">✕</button></div>`);
   document.body.append(card);
-  const hide = () => { clearTimeout(noteTimer); card.remove(); onHide?.(); };
+  const onKey = e => { if (e.key === 'Escape') hide(); };
+  const hide = () => { document.removeEventListener('keydown', onKey); card.remove(); onHide?.(); };
   card.addEventListener('hide', hide, { once: true });
-  noteTimer = setTimeout(hide, 5000);
+  card.querySelector('.nc-x').onclick = hide;
+  document.addEventListener('keydown', onKey);
 }
 
 /** 확인창. 확인을 누르면 true */
