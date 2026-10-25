@@ -5,7 +5,7 @@ import {
   coverIndex, heightM, SIL_OFFSET_RATIO, SIL_GOLD, ZMIN, ZMAX,
 } from './core.js';
 import { getLandmarks } from './landmarks.js';
-import { ASSETS, COVER_COLORS, U } from './assets.js';
+import { ASSETS, COVER_COLORS, U, icon } from './assets.js';
 import { silhouetteImage, placeSilhouette } from './sil-render.js';
 import { esc, fmtM, fmtN, landmarkCard } from './ui.js';
 
@@ -46,7 +46,10 @@ function bookStyle(color, variant, hPx, sprite) {
   if (hPx < 5) return { cls: 'thin', bg: `background:${color}` };
   if (sprite) {
     const s = ASSETS.bookSlice;
-    return { cls: '', bg: `border-style:solid;border-width:${U}px 0;border-image:url(${sprite}) ${s} 0 fill / ${U}px 0 stretch` };
+    // 9분할: 종이 단면(왼쪽)은 그대로, 가운데는 가로로 늘이고 세로로는 반복
+    return { cls: 'spr', bg: `border-style:solid;border-width:${s.top * U}px ${s.right * U}px ${s.bottom * U}px ${s.left * U}px;`
+      + `border-image:url(${sprite}) ${s.top} ${s.right} ${s.bottom} ${s.left} fill / ${s.top * U}px ${s.right * U}px ${s.bottom * U}px ${s.left * U}px stretch;`
+      + `border-image-repeat:stretch round` };
   }
   // 임시: 왼쪽 종이 단면 + 세로 금색 띠
   const p = U * 4;
@@ -104,9 +107,10 @@ export function createTower(root) {
       const x = RULER_W + hash('cx' + i) % Math.max(1, width - RULER_W - 80);
       const cls = ASSETS.cloud ? '' : ' ph';
       const bg = ASSETS.cloud ? `background:url(${ASSETS.cloud}) center/100% 100%;` : '';
-      parts.push(`<div class="tw-cloud${cls}" style="left:${x}px;top:${y}px;${bg}"></div>`);
+      // 구름은 높이마다 크기를 조금씩 다르게 (1~2배)
+      parts.push(`<div class="tw-cloud${cls}" style="left:${x}px;top:${y}px;${bg}${hash('cs' + i) % 2 ? `width:${48 * U}px;height:${18 * U}px;` : ''}"></div>`);
     }
-    parts.push(`<div class="tw-city" style="bottom:40px;background:url(${cityTileUrl()}) repeat-x bottom left/${120 * U * .8}px ${60 * U * .8}px"></div>`);
+    parts.push(`<div class="tw-city" style="bottom:40px;background:url(${cityTileUrl()}) repeat-x bottom left/${120 * U}px ${60 * U}px"></div>`);
 
     // 2. 눈금
     parts.push(`<div class="tw-ruler"></div>`);
@@ -138,7 +142,7 @@ export function createTower(root) {
       const w = b.widthUnits * U, left = cx - w / 2 + b.offsetUnits * U;
       const top = Y(cumM) - b.heightPx;
       cumM += heightM(b.pages, data.cmPerPage);
-      const st = bookStyle(COVER_COLORS[ci], b.variant, b.heightPx, ASSETS.books[ci]);
+      const st = bookStyle(COVER_COLORS[ci], b.variant, b.heightPx, ASSETS.books[ci]?.[b.variant] ?? null);
       const title = b.heightPx >= 16 ? `<span class="t">${esc(b.title)}</span>` : '';
       parts.push(`<div class="tw-book ${st.cls}" style="left:${left}px;top:${top}px;width:${w}px;height:${b.heightPx}px;${st.bg};z-index:2">${title}</div>`);
     }
@@ -152,7 +156,7 @@ export function createTower(root) {
     }
 
     // 7. 땅
-    const groundBg = ASSETS.ground ? `background:url(${ASSETS.ground}) repeat-x;` : '';
+    const groundBg = ASSETS.ground ? `background:url(${ASSETS.ground}) repeat-x left top/${16 * U}px ${14 * U}px, #8a5a32;` : '';
     parts.push(`<div class="tw-ground" style="${groundBg}z-index:3"></div>`);
 
     content.style.height = L.H + 'px';
@@ -172,7 +176,7 @@ export function createTower(root) {
     if (L.allDone) {
       const last = getLandmarks().at(-1);
       chip.className = 'tw-chip gold';
-      chip.innerHTML = `<span>🌟 하늘 끝에 닿았어요!</span><button class="btn small">설명 보기</button>`;
+      chip.innerHTML = `<span>${icon('star', '★')} 하늘 끝에 닿았어요!</span><button class="btn small">설명 보기</button>`;
       chip.querySelector('button').onclick = () => landmarkCard(last, SIL_GOLD);
     } else {
       chip.className = 'tw-chip';
@@ -184,7 +188,7 @@ export function createTower(root) {
   function renderLeader() {
     const ld = data?.leader;
     if (!ld) { leaderEl.classList.add('hidden'); return; }
-    const crown = ASSETS.crown ? `<img class="crown" src="${ASSETS.crown}" alt="">` : `<span class="crown" style="font-size:18px">👑</span>`;
+    const crown = ASSETS.crown ? `<img class="crown" src="${ASSETS.crown}" alt="">` : '👑';
     leaderEl.innerHTML = `${crown}<span>다독왕 ${ld.names.map(esc).join(', ')} <span class="small muted">${fmtN(ld.pages)}쪽</span></span>`;
     leaderEl.classList.remove('hidden');
   }

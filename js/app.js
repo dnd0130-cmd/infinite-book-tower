@@ -2,7 +2,7 @@
 import { api, DEMO } from './api.js';
 import { preloadLandmarkPngs } from './sil-render.js';
 import { cityTileUrl } from './tower.js';
-import { U } from './assets.js';
+import { U, icon } from './assets.js';
 import { $, toast, errMsg } from './ui.js';
 import { startStudent } from './student.js';
 import { startTeacher } from './teacher.js';
@@ -20,17 +20,18 @@ function showLogin() {
   root.innerHTML = `
   <div class="login">
     <h1>무한의 책탑</h1>
+    <div class="login-books">${icon('booksIcon')}${icon('star')}${icon('booksIcon')}</div>
     <div class="sub">읽은 쪽수만큼 올라가요</div>
     ${DEMO ? '<div class="frame small" style="margin-bottom:12px;z-index:1">연습 모드: 반 코드 <b>BKTWR2</b>, 번호 1~20 / 선생님은 아무 이메일로나 로그인</div>' : ''}
     <div class="cards">
       <form class="frame" data-f="student" autocomplete="off">
-        <h2>🙋 학생 입장</h2>
+        <h2>${icon('booksIcon')} 학생 입장</h2>
         <label class="field"><span>반 코드 (6자리)</span><input class="input" name="code" maxlength="6" required style="text-transform:uppercase;letter-spacing:3px" value="${last?.code || ''}"></label>
         <label class="field"><span>내 번호</span><input class="input" name="number" type="number" inputmode="numeric" min="1" required value="${last?.number || ''}"></label>
         <button class="btn primary" style="width:100%">입장하기</button>
       </form>
       <form class="frame" data-f="teacher">
-        <h2>🧑‍🏫 선생님</h2>
+        <h2>선생님</h2>
         <label class="field"><span>이메일</span><input class="input" name="email" type="email" required autocomplete="username"></label>
         <label class="field"><span>비밀번호</span><input class="input" name="pw" type="password" required minlength="6" autocomplete="current-password"></label>
         <div class="row"><button class="btn blue grow" data-a="in">로그인</button><button class="btn grow" data-a="up">가입</button></div>

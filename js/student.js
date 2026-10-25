@@ -2,6 +2,7 @@
 import { api } from './api.js';
 import { heightM, leader, newlyReached, seenKey, validateBook, sortBooks } from './core.js';
 import { createTower } from './tower.js';
+import { icon } from './assets.js';
 import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, breakthroughPopup } from './ui.js';
 
 const REFRESH_MS = 30000;
@@ -32,7 +33,7 @@ export async function startStudent(root, { code, number, data, onLogout }) {
       <div class="side">
         <div class="frame" data-x="summary"></div>
         <form class="frame" data-x="form" autocomplete="off">
-          <h2>📚 읽은 책 쌓기</h2>
+          <h2>${icon('booksIcon')} 읽은 책 쌓기</h2>
           <label class="field"><span>책 제목</span><input class="input" name="title" maxlength="100" required></label>
           <label class="field"><span>읽은 쪽수 (1~3000)</span><input class="input" name="pages" type="number" inputmode="numeric" min="1" max="3000" step="1" required></label>
           <label class="field"><span>한 줄 느낌 (선택)</span><input class="input" name="note" maxlength="200"></label>
@@ -62,7 +63,7 @@ export async function startStudent(root, { code, number, data, onLogout }) {
     try {
       await api.addBook(code, number, v);
       f.reset();
-      toast(`📚 「${v.title}」 ${v.pages}쪽을 쌓았어요!`);
+      toast(`「${v.title}」 ${v.pages}쪽을 쌓았어요!`);
       await reload();
     } catch (err) { toast(errMsg(err)); } finally { btn.disabled = false; }
   };
@@ -86,13 +87,13 @@ export async function startStudent(root, { code, number, data, onLogout }) {
     const sum = arr => arr.reduce((s, b) => s + b.pages, 0);
     const cp = sum(data.books), mp = sum(mine), cM = heightM(cp, cm), mM = heightM(mp, cm);
     const pct = goal > 0 ? Math.min(100, cM / goal * 100) : 0;
-    const nextTxt = !L ? '' : L.allDone ? '🌟 모든 랜드마크를 넘었어요!'
+    const nextTxt = !L ? '' : L.allDone ? `${icon('star')} 모든 랜드마크를 넘었어요!`
       : `${mode === 'class' ? '우리 반' : '내 탑'} 다음 목표 <b>${esc(L.next.name)}</b>까지 <b>${fmtM(L.landmark.remainingM)}</b>`;
     X('summary').innerHTML = `
       <h2>우리 반 책탑</h2>
       <div class="stat"><span>높이</span><b>${fmtM(cM)}</b></div>
       <div class="stat"><span>쪽수 · 권수</span><span>${fmtN(cp)}쪽 · ${fmtN(data.books.length)}권</span></div>
-      <div class="small" style="margin-top:6px">목표 ${fmtM(goal)} 중 ${Math.floor(pct)}% ${cM >= goal && goal > 0 ? '🎉 목표 달성!' : `· ${fmtM(Math.max(0, goal - cM))} 남음`}</div>
+      <div class="small" style="margin-top:6px">목표 ${fmtM(goal)} 중 ${Math.floor(pct)}% ${cM >= goal && goal > 0 ? `${icon('star')} 목표 달성!` : `· ${fmtM(Math.max(0, goal - cM))} 남음`}</div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       <p class="small" style="margin:8px 0">${nextTxt}</p>
       <h2 style="margin-top:8px">내 책탑</h2>

@@ -28,10 +28,14 @@ python3 -m http.server 8000
 
 ## 디자인 교체
 
+지금의 도트 UI(틀·버튼·책·왕관·구름·땅·도시)는 `tools/make-assets.mjs`가 만든 PNG다. 색이나 모양을 바꾸려면 이 파일을 고치고 `npm run assets`.
+직접 그린 파일로 바꾸려면 `assets/` 아래 같은 이름·같은 크기로 덮어쓴다 (틀은 9분할이므로 테두리 칸 수를 유지).
+글꼴은 [갈무리](https://github.com/quiple/galmuri) (SIL OFL, `assets/fonts/LICENSE.txt`).
+
 - 랜드마크 그림: `assets/landmarks/landmark_{id}.png`를 넣고 `js/assets.js`의 `landmarkPngs`에 id를 적는다.
   크기는 (격자 w+2)×(h+2), 맨 윗줄 = 꼭대기, 맨 아랫줄 = 땅속 테두리. 기본 남색(#5a6aa8) 계열로 그리면 금색·회색은 코드가 만든다.
-- 책·왕관·하늘·구름·땅·도시: `js/assets.js`의 `ASSETS`에 경로를 넣는다.
-- 글꼴: `css/style.css`의 `@font-face` 주석을 풀고 `--font`에 이름을 둔다.
+- 책·왕관·하늘·구름·땅·도시: `js/assets.js`의 `ASSETS` 경로.
+- 글꼴: `css/style.css` 맨 위 `@font-face`와 `--font`.
 
 ## 시험
 

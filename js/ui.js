@@ -2,6 +2,7 @@
 import { escapeHtml as esc, SIL_FAR } from './core.js';
 import { getLandmarks } from './landmarks.js';
 import { silhouetteImage } from './sil-render.js';
+import { icon } from './assets.js';
 
 export { esc };
 export const $ = (sel, root = document) => root.querySelector(sel);
@@ -72,7 +73,7 @@ export function landmarkCard(lm, color) {
 export function breakthroughPopup(lm) {
   const img = silhouetteImage(lm.id);
   return new Promise(res => {
-    const back = openModal(`<div class="burst">🎉 ${esc(lm.name)} 돌파!</div>
+    const back = openModal(`<div class="burst">${icon('star')} ${esc(lm.name)} 돌파! ${icon('star')}</div>
       <img class="big-sil" src="${img.url}" alt=""><div class="muted">${fmtM(lm.m)}</div>
       <p>${esc(lm.desc)}</p><div class="actions"><button class="btn primary" data-a="ok">확인</button></div>`);
     back.addEventListener('click', e => { if (e.target.dataset?.a) { back.remove(); res(); } });
