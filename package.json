@@ -4,6 +4,7 @@
   "type": "module",
   "scripts": {
     "test": "node --test test/*.test.js",
-    "assets": "node tools/make-assets.mjs"
+    "assets": "node tools/make-assets.mjs",
+    "rules-test": "firebase emulators:exec --only firestore --project demo-bt \"node --test tools/rules-test.mjs\""
   }
 }

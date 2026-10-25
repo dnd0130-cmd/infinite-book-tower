@@ -1,50 +1,13 @@
-// 데이터 접근 (명세서 5장, 6장 Supabase 호출)
-// 주소에 ?demo를 붙이면 DB 없이 브라우저 안의 연습용 데이터로 동작한다.
-import { SUPABASE_URL, SUPABASE_KEY } from './config.js';
+// 데이터 접근. 화면 코드는 여기의 `api`만 부른다.
+//  - 연습 모드(?demo): 브라우저 안의 가짜 데이터 (DB 없음)
+//  - 그 외: Firebase (js/api-firebase.js, 설정은 js/firebase-config.js)
+// 주소에 ?emulator를 붙이면 내 컴퓨터의 Firebase 에뮬레이터에 연결한다 (시험용).
 import { genCode } from './core.js';
+import { isFirebaseConfigured } from './firebase-config.js';
 
 export const DEMO = window.__BT_DEMO__ === true || new URLSearchParams(location.search).has('demo');
-
-function realApi() {
-  const sb = window.supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
-  const ok = ({ data, error }) => { if (error) throw error; return data; };
-  return {
-    // 학생 (로그인 없음, RPC만)
-    studentData: (code, number) => sb.rpc('student_data', { p_code: code, p_number: number }).then(ok),
-    addBook: (code, number, b) => sb.rpc('student_add_book', { p_code: code, p_number: number, p_title: b.title, p_pages: b.pages, p_note: b.note }).then(ok),
-    deleteMyBook: (code, number, id) => sb.rpc('student_delete_book', { p_code: code, p_number: number, p_book_id: id }).then(ok),
-
-    // 교사
-    async user() { const { data } = await sb.auth.getSession(); return data.session?.user || null; },
-    signIn: (email, password) => sb.auth.signInWithPassword({ email, password }).then(ok),
-    async signUp(email, password) {
-      const d = await sb.auth.signUp({ email, password }).then(ok);
-      return { needsConfirm: !d.session };
-    },
-    // 구글 로그인: 구글 화면으로 이동했다가 이 주소로 돌아온다 (돌아오면 로그인된 상태)
-    signInGoogle: () => sb.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: location.origin + location.pathname } }).then(ok),
-    signOut: () => sb.auth.signOut(),
-    listClasses: () => sb.from('classes').select('*').order('created_at').then(ok),
-    async createClass(name) {
-      for (let i = 0; i < 5; i++) {
-        const { data, error } = await sb.from('classes').insert({ name, code: genCode() }).select().single();
-        if (!error) return data;
-        if (error.code !== '23505') throw error;     // 반 코드 중복이면 다시
-      }
-      throw new Error('반 코드를 만들지 못했어요. 다시 시도해 주세요');
-    },
-    updateClass: (id, patch) => sb.from('classes').update(patch).eq('id', id).then(ok),
-    listStudents: classId => sb.from('students').select('*').eq('class_id', classId).order('number').then(ok),
-    async addStudents(classId, names) {
-      const cur = await sb.from('students').select('number').eq('class_id', classId).order('number', { ascending: false }).limit(1).then(ok);
-      const max = cur[0]?.number || 0;
-      return sb.from('students').insert(names.map((name, i) => ({ class_id: classId, number: max + i + 1, name }))).then(ok);
-    },
-    deleteStudent: id => sb.from('students').delete().eq('id', id).then(ok),
-    listBooks: classId => sb.from('books').select('*').eq('class_id', classId).order('created_at').then(ok),
-    deleteBook: id => sb.from('books').delete().eq('id', id).then(ok),
-  };
-}
+const EMULATOR = new URLSearchParams(location.search).has('emulator');
+export const NEEDS_SETUP = !DEMO && !EMULATOR && !isFirebaseConfigured();
 
 // ── 연습용 (메모리) ──
 function demoApi() {
@@ -78,7 +41,7 @@ function demoApi() {
       return wait({
         cls: f.c, me: f.s,
         students: students.filter(s => s.class_id === f.c.id).map(({ id, number, name }) => ({ id, number, name })),
-        books: books.filter(b => b.class_id === f.c.id).map(b => ({ ...b, note: b.student_id === f.s.id ? b.note : null })),
+        books: books.filter(b => b.class_id === f.c.id),
       });
     },
     async addBook(code, number, b) {
@@ -104,14 +67,15 @@ function demoApi() {
       ns.forEach((name, i) => students.push({ id: 's' + uid(), class_id: classId, number: max + i + 1, name }));
       return wait(null);
     },
-    async deleteStudent(id) {
+    async deleteStudent(_classId, id) {
       students.splice(students.findIndex(s => s.id === id), 1);
       for (let i = books.length - 1; i >= 0; i--) if (books[i].student_id === id) books.splice(i, 1);
       return wait(null);
     },
     listBooks: async classId => wait(books.filter(b => b.class_id === classId)),
-    async deleteBook(id) { const i = books.findIndex(b => b.id === id); if (i >= 0) books.splice(i, 1); return wait(null); },
+    async deleteBook(_classId, id) { const i = books.findIndex(b => b.id === id); if (i >= 0) books.splice(i, 1); return wait(null); },
   };
 }
 
-export const api = DEMO ? demoApi() : realApi();
+// Firebase 연결 코드는 필요할 때만 불러온다 (연습 모드에서는 외부 주소를 쓰지 않음)
+export const api = DEMO ? demoApi() : NEEDS_SETUP ? null : (await import('./api-firebase.js')).createApi();

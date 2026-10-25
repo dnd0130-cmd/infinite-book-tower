@@ -1,5 +1,5 @@
 // 시작점: 로그인 화면 → 학생 / 교사 화면 (명세서 2.1)
-import { api, DEMO } from './api.js';
+import { api, DEMO, NEEDS_SETUP } from './api.js';
 import { preloadLandmarkPngs } from './sil-render.js';
 import { cityTileUrl } from './tower.js';
 import { U, icon } from './assets.js';
@@ -49,10 +49,10 @@ function showLogin() {
   };
   $('[data-google]', root).onclick = async () => {
     try {
-      await api.signInGoogle();
-      if (DEMO) { const user = await api.user(); if (user) startTeacher(root, { user, onLogout: showLogin }); }
-      // 실제로는 구글 화면으로 이동하므로 여기서 더 할 일이 없다
-    } catch (err) { toast(errMsg(err)); }
+      await api.signInGoogle();                 // 구글 팝업에서 계정을 고르면 돌아온다
+      const user = await api.user();
+      if (user) startTeacher(root, { user, onLogout: showLogin });
+    } catch (err) { if (!err.silent) toast(errMsg(err)); }
   };
   let action = 'in';
   $('[data-f="teacher"]', root).addEventListener('click', e => { if (e.target.dataset?.a) action = e.target.dataset.a; });
@@ -69,8 +69,7 @@ function showLogin() {
       const user = await api.user();
       if (user) startTeacher(root, { user, onLogout: showLogin });
     } catch (err) {
-      const m = errMsg(err);
-      toast(/invalid login/i.test(m) ? '이메일이나 비밀번호가 맞지 않아요' : /already registered/i.test(m) ? '이미 가입된 이메일이에요' : m);
+      if (!err.silent) toast(errMsg(err));
     }
   };
 }
@@ -92,17 +91,21 @@ async function enterStudent(code, number, fromForm) {
   }
 }
 
-// 구글 로그인에서 돌아왔는데 오류가 있으면 알려 준다
-function oauthError() {
-  const q = new URLSearchParams(location.hash.slice(1) || location.search);
-  const m = q.get('error_description');
-  return m ? m.replace(/\+/g, ' ') : null;
+// Firebase 설정(js/firebase-config.js)이 비어 있을 때 보여 주는 안내
+function showSetup() {
+  root.innerHTML = `<div class="login"><h1>무한의 책탑</h1>
+    <div class="frame" style="max-width:520px;margin-top:24px;z-index:1">
+      <h2>Firebase 설정이 아직 없어요</h2>
+      <p class="small">1. Firebase 콘솔에서 웹 앱을 만들고 <b>firebaseConfig</b> 값을 복사하세요.<br>
+      2. <b>js/firebase-config.js</b>에 붙여 넣고 저장하세요.<br>
+      3. 자세한 순서는 README의 'Firebase 설정'을 보세요.</p>
+      <p class="small muted">설정 없이 둘러보려면 주소 끝에 <b>?demo</b>를 붙이세요.</p>
+    </div></div>`;
 }
 
 async function boot() {
+  if (NEEDS_SETUP) return showSetup();
   await preloadLandmarkPngs();
-  const oerr = oauthError();
-  if (oerr) toast(/not.*allowed|access_denied/i.test(oerr) ? '이 구글 계정은 아직 사용할 수 없어요' : oerr);
   try {
     const user = await api.user();
     if (user) return startTeacher(root, { user, onLogout: showLogin });

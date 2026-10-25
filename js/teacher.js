@@ -143,7 +143,7 @@ export async function startTeacher(root, { user, onLogout }) {
     P('check').querySelectorAll('[data-del]').forEach(btn => btn.onclick = async () => {
       const b = books.find(x => x.id === btn.dataset.del), s = name.get(b.student_id);
       if (!await confirmBox(`${s ? s.name + ' 학생의 ' : ''}「${b.title}」 (${b.pages}쪽) 기록을 삭제할까요?`)) return;
-      try { await api.deleteBook(b.id); toast('삭제했어요'); await reload(); } catch (e) { toast(errMsg(e)); }
+      try { await api.deleteBook(cls.id, b.id); toast('삭제했어요'); await reload(); } catch (e) { toast(errMsg(e)); }
     });
   }
 
@@ -167,7 +167,7 @@ export async function startTeacher(root, { user, onLogout }) {
     P('students').querySelectorAll('[data-sdel]').forEach(btn => btn.onclick = async () => {
       const s = students.find(x => x.id === btn.dataset.sdel), n = cnt.get(s.id) || 0;
       if (!await confirmBox(`${s.number}번 ${s.name} 학생을 삭제할까요?\n이 학생이 쌓은 책 ${n}권도 함께 삭제돼요.`)) return;
-      try { await api.deleteStudent(s.id); toast('삭제했어요'); await reload(); } catch (e) { toast(errMsg(e)); }
+      try { await api.deleteStudent(cls.id, s.id); toast('삭제했어요'); await reload(); } catch (e) { toast(errMsg(e)); }
     });
   }
 

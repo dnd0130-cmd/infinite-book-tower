@@ -1,0 +1,78 @@
+rules_version = '2';
+
+// 무한의 책탑 — Firestore 보안 규칙
+//
+// 구조:  classes/{반코드}  ─┬─ students/{번호}
+//                           └─ books/{책 id}
+//
+// 학생은 로그인하지 않는다. "반 코드"가 곧 그 반의 비밀 주소다.
+//  - 반 목록은 누구도 조회할 수 없다 (list 금지). 코드를 알아야 그 반 문서에 접근한다.
+//  - 반 코드를 아는 사람은 그 반의 학생·책을 읽고, 책을 쌓고 지울 수 있다.
+//  - 반·학생을 만들고 고치는 것은 그 반의 선생님(로그인한 계정)만 가능하다.
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function classPath(code) {
+      return /databases/$(database)/documents/classes/$(code);
+    }
+    function isTeacherOf(code) {
+      return request.auth != null
+        && get(classPath(code)).data.teacherUid == request.auth.uid;
+    }
+    function nonBlank(s) {
+      return s is string && s.matches('.*\\S.*');
+    }
+
+    match /classes/{code} {
+      // 코드를 아는 사람만 반 정보를 읽는다
+      allow get: if true;
+      // 선생님은 자기 반만 목록으로 조회 (where teacherUid == 내 uid)
+      allow list: if request.auth != null && resource.data.teacherUid == request.auth.uid;
+
+      allow create: if request.auth != null
+        && code.matches('[A-Z0-9]{6}')
+        && request.resource.data.keys().hasOnly(['code', 'name', 'goal_m', 'cm_per_page', 'teacherUid', 'created_at'])
+        && request.resource.data.teacherUid == request.auth.uid
+        && request.resource.data.code == code
+        && nonBlank(request.resource.data.name) && request.resource.data.name.size() <= 50
+        && request.resource.data.goal_m is number && request.resource.data.goal_m > 0 && request.resource.data.goal_m <= 100000
+        && request.resource.data.cm_per_page is number && request.resource.data.cm_per_page > 0 && request.resource.data.cm_per_page <= 100
+        && request.resource.data.created_at == request.time;
+
+      allow update: if request.auth != null
+        && resource.data.teacherUid == request.auth.uid
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'goal_m', 'cm_per_page'])
+        && nonBlank(request.resource.data.name) && request.resource.data.name.size() <= 50
+        && request.resource.data.goal_m is number && request.resource.data.goal_m > 0 && request.resource.data.goal_m <= 100000
+        && request.resource.data.cm_per_page is number && request.resource.data.cm_per_page > 0 && request.resource.data.cm_per_page <= 100;
+
+      allow delete: if request.auth != null && resource.data.teacherUid == request.auth.uid;
+
+      match /students/{number} {
+        allow read: if true;
+        allow create, update: if isTeacherOf(code)
+          && request.resource.data.keys().hasOnly(['number', 'name'])
+          && request.resource.data.number is int
+          && string(request.resource.data.number) == number
+          && request.resource.data.number >= 1 && request.resource.data.number <= 9999
+          && nonBlank(request.resource.data.name) && request.resource.data.name.size() <= 30;
+        allow delete: if isTeacherOf(code);
+      }
+
+      match /books/{bookId} {
+        allow read: if true;
+        // 반 코드를 아는 사람이 책을 쌓는다. 반에 있는 번호여야 하고, 쪽수·글자 수·한 줄 느낌(필수)을 검사한다.
+        allow create: if request.resource.data.keys().hasOnly(['student_number', 'title', 'pages', 'note', 'created_at'])
+          && request.resource.data.student_number is int
+          && exists(/databases/$(database)/documents/classes/$(code)/students/$(string(request.resource.data.student_number)))
+          && nonBlank(request.resource.data.title) && request.resource.data.title.size() <= 100
+          && request.resource.data.pages is int && request.resource.data.pages >= 1 && request.resource.data.pages <= 3000
+          && nonBlank(request.resource.data.note) && request.resource.data.note.size() <= 200
+          && request.resource.data.created_at == request.time;
+        // 책은 고칠 수 없고, 지우기만 가능 (학생 본인 확인은 화면에서 한다)
+        allow update: if false;
+        allow delete: if true;
+      }
+    }
+  }
+}
