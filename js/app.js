@@ -18,6 +18,7 @@ const saved = {
 
 function showLogin() {
   const last = saved.get();
+  const urlCode = (new URLSearchParams(location.search).get('code') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);   // QR 코드로 들어오면 반 코드가 채워져 있다
   root.innerHTML = `
   <div class="login">
     <h1>무한의 책탑</h1>
@@ -27,7 +28,7 @@ function showLogin() {
     <div class="cards">
       <form class="frame" data-f="student" autocomplete="off">
         <h2>${icon('booksIcon')} 학생 입장</h2>
-        <label class="field"><span>반 코드</span><input class="input" name="code" maxlength="12" required autocapitalize="characters" spellcheck="false" style="text-transform:uppercase;letter-spacing:3px" value="${last?.code || ''}"></label>
+        <label class="field"><span>반 코드</span><input class="input" name="code" maxlength="12" required autocapitalize="characters" spellcheck="false" style="text-transform:uppercase;letter-spacing:3px" value="${urlCode || last?.code || ''}"></label>
         <label class="field"><span>내 학번 (번호)</span><input class="input" name="number" type="number" inputmode="numeric" min="1" max="99999" required value="${last?.number || ''}" placeholder="예: 4201"></label>
         <p class="small muted" style="margin:-4px 0 8px">4학년 2반 1번이면 <b>4201</b> (학번이 없는 반은 번호)</p>
         <button class="btn primary" style="width:100%">입장하기</button>
@@ -128,7 +129,8 @@ async function boot() {
     if (user) return startTeacher(root, { user, onLogout: showLogin });
   } catch { /* 로그인 정보 확인 실패는 로그인 화면으로 */ }
   const last = saved.get();
-  if (last && await enterStudent(last.code, last.number, false)) return;
+  const qrCode = (new URLSearchParams(location.search).get('code') || '').toUpperCase();
+  if (last && (!qrCode || qrCode === last.code) && await enterStudent(last.code, last.number, false)) return;
   showLogin();
 }
 
