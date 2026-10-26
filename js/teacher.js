@@ -2,7 +2,7 @@
 import { api } from './api.js';
 import { heightM, leader, statsByStudent, suspicious, parseStudentLines, toCsv, numberLabel, usesHakbun, hakbunBase, hakbun, validateClassCode, normalizeCode, genCode } from './core.js';
 import { createTower } from './tower.js';
-import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, downloadCsv } from './ui.js';
+import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, downloadCsv, qrDialog } from './ui.js';
 
 const CLASS_KEY = 'bt_teacher_class';
 const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -88,6 +88,7 @@ export async function startTeacher(root, { user, onLogout }) {
       <select class="input" style="width:auto" data-x="sel"></select>
       <button class="btn small" data-x="new">＋ 새 반</button>
       <span class="small muted">반 코드</span><span class="code" data-x="code">------</span>
+      <button class="btn small" data-x="qr" title="학생 입장 QR 코드">QR</button>
       <span class="spacer"></span>
       <span class="small muted">${esc(user.email || '')}</span>
       <button class="btn small" data-x="logout">로그아웃</button>
@@ -115,6 +116,13 @@ export async function startTeacher(root, { user, onLogout }) {
   const towerEl = X('tower');
   const tower = createTower(towerEl);
 
+  X('qr').onclick = () => {
+    if (!cls) return;
+    const u = new URL(location.href); u.search = ''; u.hash = '';
+    for (const k of ['demo', 'emulator']) if (new URL(location.href).searchParams.has(k)) u.searchParams.set(k, '');
+    u.searchParams.set('code', cls.code);
+    qrDialog(cls.code, u.href);
+  };
   X('logout').onclick = async () => { unsub?.(); unsub = null; await api.signOut(); onLogout(); };
   X('new').onclick = async () => {
     const v = await newClassDialog();
@@ -137,6 +145,7 @@ export async function startTeacher(root, { user, onLogout }) {
     X('sel').innerHTML = classes.map(c => `<option value="${c.id}" ${c.id === cls?.id ? 'selected' : ''}>${esc(c.name)}</option>`).join('');
     X('sel').classList.toggle('hidden', !classes.length);
     X('code').textContent = cls?.code || '------';
+    X('qr').disabled = !cls;
     if (!cls) { renderEmpty(); showTab(tab); return; }
     lsSet(CLASS_KEY, cls.id);
     [students, books] = await Promise.all([api.listStudents(cls.id), api.listBooks(cls.id)]);

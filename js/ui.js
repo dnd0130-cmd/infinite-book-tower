@@ -1,4 +1,5 @@
 // 공통 화면 부품: 알림, 확인창, 설명 카드, 돌파 팝업, 도감
+import qrcode from './vendor/qrcode.js';
 import { escapeHtml as esc, SIL_FAR, validateBook } from './core.js';
 import { getLandmarks } from './landmarks.js';
 import { silhouetteImage } from './sil-render.js';
@@ -177,5 +178,18 @@ export function renderDex(el, reachedCount) {
       cell = h(`<div class="dex-cell far"><img src="${silhouetteImage(lm.id, SIL_FAR).url}" alt=""><div class="q">?</div></div>`);
     }
     el.append(cell);
+  });
+}
+
+// 반 코드와 바로 입장하는 QR 코드를 크게 보여 준다 (교실 화면에 띄워 학생이 휴대폰으로 찍는다)
+export function qrDialog(code, url) {
+  return new Promise(res => {
+    const q = qrcode(0, 'M'); q.addData(url); q.make();
+    const back = openModal(`<h3>학생 입장 QR</h3>
+      <div style="background:#fff;padding:10px;margin:8px auto;width:min(70vw,60vh,360px);line-height:0;border:3px solid #000">${q.createSvgTag({ cellSize: 4, margin: 0, scalable: true })}</div>
+      <p class="small muted" style="margin:6px 0 0">휴대폰 카메라로 찍으면 반 코드가 채워진 입장 화면이 열려요</p>
+      <div class="code" style="font-size:clamp(28px,8vw,48px);letter-spacing:6px;margin:8px 0">${esc(code)}</div>
+      <div class="actions"><button class="btn primary" data-a="ok">닫기</button></div>`);
+    back.addEventListener('click', e => { if (e.target.dataset?.a || e.target === back) { back.remove(); res(); } });
   });
 }
