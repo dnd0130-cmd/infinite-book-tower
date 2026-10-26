@@ -61,7 +61,14 @@ test('화면 맞춤: 가까운 목표는 한 화면, 먼 목표는 스크롤', (
 
 test('캔버스 높이 상한', () => {
   const r = C.computeLayout({ ...base, zoom: 60, books: [book('a', 50000)] });
-  assert.ok(r.H <= 40000 + 90 + 1);
+  assert.ok(r.H <= 160000 + 90 + 1);
+  const d = C.computeLayout({ ...base, zoom: 1, books: [book('a', 50000)] });
+  assert.ok(d.H <= 40000 + 90 + 1);                     // 기본 화면은 40000px 안
+});
+
+test('목표가 먼 빈 탑에서도 확대·축소가 반응', () => {
+  const at = zoom => C.computeLayout({ ...base, goalM: 500, zoom, books: [] }).ppm;
+  assert.ok(at(2) > at(1) && at(1) > at(0.5));          // 확대하면 커지고 축소하면 작아짐
 });
 
 test('눈금 간격은 38px 이상', () => {
