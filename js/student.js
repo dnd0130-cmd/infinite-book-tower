@@ -11,7 +11,7 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, String(v)); } catch { /* 저장 불가 환경은 무시 */ } },
 };
 
-export async function startStudent(root, { code, number, pin, data, onLogout }) {
+export async function startStudent(root, { code, number, data, onLogout }) {
   let mode = 'class', timer = 0, busy = false, goalState = { reached: false, goal: 0 };
 
   root.innerHTML = `
@@ -157,7 +157,7 @@ export async function startStudent(root, { code, number, pin, data, onLogout }) 
   }
 
   async function reload() {
-    const d = await api.studentData(code, number, pin);
+    const d = await api.studentData(code, number);
     if (!d) { toast('반 코드나 번호를 다시 확인해 주세요'); clearInterval(timer); onLogout(); return; }
     data = d;
     render();

@@ -13,7 +13,7 @@ import {
   query, where, orderBy, writeBatch, onSnapshot, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { FIREBASE_CONFIG } from './firebase-config.js';
-import { genCode, checkStudentPin, resolveNumber, normalizeCode, validateClassCode } from './core.js';
+import { genCode, resolveNumber, normalizeCode, validateClassCode } from './core.js';
 
 const KO = {
   'auth/invalid-credential': '이메일이나 비밀번호가 맞지 않아요',
@@ -54,8 +54,8 @@ export function createApi() {
   }
 
   const iso = ts => (ts?.toDate ? ts.toDate() : ts ? new Date(ts) : new Date()).toISOString();
-  const mapClass = d => { const x = d.data(); return { id: d.id, code: d.id, name: x.name, goal_m: x.goal_m, cm_per_page: x.cm_per_page, pinRequired: x.pinRequired === true, grade: x.grade ?? null, room: x.room ?? null, created_at: iso(x.created_at) }; };
-  const mapStudent = d => { const x = d.data(); return { id: d.id, number: x.number, name: x.name, left: x.left === true, pinHash: x.pinHash || null }; };
+  const mapClass = d => { const x = d.data(); return { id: d.id, code: d.id, name: x.name, goal_m: x.goal_m, cm_per_page: x.cm_per_page, grade: x.grade ?? null, room: x.room ?? null, created_at: iso(x.created_at) }; };
+  const mapStudent = d => { const x = d.data(); return { id: d.id, number: x.number, name: x.name, left: x.left === true }; };
   const mapBook = d => { const x = d.data({ serverTimestamps: 'estimate' }); return { id: d.id, student_id: String(x.student_number), title: x.title, pages: x.pages, note: x.note ?? '', created_at: iso(x.created_at) }; };
   const sub = (code, name) => collection(db, 'classes', code, name);
   const normCode = c => String(c).trim().toUpperCase();
@@ -93,14 +93,13 @@ export function createApi() {
 
   return {
     // 학생 (로그인 없음)
-    studentData: wrap(async (code, number, pin) => {
+    studentData: wrap(async (code, number) => {
       code = normCode(code);
       const st = await watch(code);
       if (!st.cls) return null;
       const me = st.students.find(s => s.number === resolveNumber(number, st.cls));   // 학번 방식 반이면 출석번호(1~99)만 써도 찾아 준다
       if (!me) return null;
       if (me.left) throw new Error('이 번호는 지금 쓸 수 없어요. 선생님께 물어보세요');
-      await checkStudentPin(st.cls, me, code, me.number, pin);
       return { cls: st.cls, me, students: st.students, books: st.books };
     }),
     // 반 하나를 실시간으로 지켜본다 (교실 TV). cb({ cls, students, books })를 지금 한 번, 바뀔 때마다 부른다. 해제 함수를 돌려준다
@@ -150,7 +149,7 @@ export function createApi() {
       const hak = grade && room ? { grade: Number(grade), room: Number(room) } : {};
       const make = async c => {
         await setDoc(doc(db, 'classes', c), { code: c, name, goal_m: 500, cm_per_page: 1, teacherUid: auth.currentUser.uid, created_at: serverTimestamp(), ...hak });
-        return { id: c, code: c, name, goal_m: 500, cm_per_page: 1, pinRequired: false, grade: hak.grade ?? null, room: hak.room ?? null, created_at: new Date().toISOString() };
+        return { id: c, code: c, name, goal_m: 500, cm_per_page: 1, grade: hak.grade ?? null, room: hak.room ?? null, created_at: new Date().toISOString() };
       };
       if (want) {
         const c = normalizeCode(want), err = validateClassCode(c);
@@ -186,14 +185,6 @@ export function createApi() {
       mine.docs.forEach(d => batch.delete(d.ref));
       batch.delete(doc(db, 'classes', classId, 'students', id));
       await batch.commit();
-    }),
-    // 학생 비밀번호: items = [{ id, hash }] — 원문은 저장하지 않고 해시만 저장한다
-    setPins: wrap(async (classId, items) => {
-      for (let i = 0; i < items.length; i += 400) {
-        const b = writeBatch(db);
-        items.slice(i, i + 400).forEach(it => b.update(doc(db, 'classes', classId, 'students', it.id), { pinHash: it.hash }));
-        await b.commit();
-      }
     }),
     clearBooks: wrap(async classId => { await deleteAll(sub(classId, 'books')); }),
     deleteClass: wrap(async classId => {

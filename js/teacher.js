@@ -1,6 +1,6 @@
 // 교사 화면 (명세서 2.3)
 import { api } from './api.js';
-import { heightM, leader, statsByStudent, suspicious, parseStudentLines, toCsv, pinHash, randomPin, numberLabel, usesHakbun, hakbunBase, hakbun, validateClassCode, normalizeCode, genCode } from './core.js';
+import { heightM, leader, statsByStudent, suspicious, parseStudentLines, toCsv, numberLabel, usesHakbun, hakbunBase, hakbun, validateClassCode, normalizeCode, genCode } from './core.js';
 import { createTower } from './tower.js';
 import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, downloadCsv } from './ui.js';
 
@@ -153,12 +153,12 @@ export async function startTeacher(root, { user, onLogout }) {
     try {
       unsub = await api.subscribeClass(cls.code, snap => {
         if (!cls || cls.id !== id || !snap.cls) return;
-        const sig = JSON.stringify([snap.cls.name, snap.cls.goal_m, !!snap.cls.pinRequired, snap.books.length, snap.books.at(-1)?.id,
-          snap.books.reduce((a, b) => a + b.pages * 31 + b.title.length + (b.note || '').length, 0), snap.students.map(s => `${s.id}${s.name}${s.left ? 1 : 0}${s.pinHash ? 1 : 0}`).join()]);
+        const sig = JSON.stringify([snap.cls.name, snap.cls.goal_m, snap.books.length, snap.books.at(-1)?.id,
+          snap.books.reduce((a, b) => a + b.pages * 31 + b.title.length + (b.note || '').length, 0), snap.students.map(s => `${s.id}${s.name}${s.left ? 1 : 0}`).join()]);
         if (sig === liveSig) return;
         const firstTick = liveSig === ''; liveSig = sig;
         if (firstTick) return;                                  // 처음 한 번은 방금 불러온 것과 같으므로 건너뜀
-        Object.assign(cls, { name: snap.cls.name, goal_m: snap.cls.goal_m, pinRequired: !!snap.cls.pinRequired });
+        Object.assign(cls, { name: snap.cls.name, goal_m: snap.cls.goal_m });
         students = snap.students; books = snap.books;
         renderTower(false); renderCheck();
         const ta = X('names'); if (!ta || (!ta.value && document.activeElement !== ta)) renderStudents();   // 입력 중인 글을 지우지 않는다
@@ -241,34 +241,11 @@ export async function startTeacher(root, { user, onLogout }) {
     });
   }
 
-  // 비밀번호 결과 창: 원문은 저장하지 않으므로 이 창을 닫으면 다시 볼 수 없다
-  function showPins(list, title) {
-    const back = h(`<div class="modal-back"><div class="modal frame"><h3>${esc(title)}</h3>
-      <p class="small warn" style="margin:4px 0 8px">이 창을 닫으면 비밀번호를 다시 볼 수 없어요. 학생에게 알려 주거나 CSV로 받아 두세요.</p>
-      <div class="scroll-x" style="max-height:50vh;overflow-y:auto"><table class="grid" style="text-align:left"><tr><th>${numHead()}</th><th>이름</th><th>비밀번호</th></tr>
-      ${list.map(x => `<tr><td class="num">${x.number}</td><td>${esc(x.name)}</td><td><b style="letter-spacing:3px">${x.pin}</b></td></tr>`).join('')}</table></div>
-      <div class="actions"><button class="btn" data-a="csv">CSV로 받기</button><button class="btn primary" data-a="ok">닫기</button></div></div></div>`);
-    document.body.append(back);
-    back.addEventListener('click', e => {
-      const a = e.target.dataset?.a;
-      if (a === 'csv') downloadCsv(`${cls.name.replace(/[\\/:*?"<>|]/g, '_')}_학생_비밀번호.csv`, toCsv([[numHead(), '이름', '비밀번호'], ...list.map(x => [x.number, x.name, x.pin])]));
-      else if (a === 'ok') back.remove();
-    });
-  }
-  async function makePins(targets, title) {
-    const list = targets.map(s => ({ ...s, pin: randomPin() }));
-    const items = await Promise.all(list.map(async x => ({ id: x.id, hash: await pinHash(cls.code, x.number, x.pin) })));
-    await api.setPins(cls.id, items);
-    await reload();
-    showPins(list.map(x => ({ number: x.number, name: x.name, pin: x.pin })), title);
-  }
-
   function renderStudents() {
     const cnt = new Map(); books.forEach(b => cnt.set(b.student_id, (cnt.get(b.student_id) || 0) + 1));
     const base = hakbunBase(cls), inBlock = students.map(s => s.number).filter(n => !base || (n > base && n <= base + 99));
     const nextNo = (inBlock.length ? Math.max(...inBlock) - base : 0) + 1;
     const nLeft = students.filter(s => s.left).length;
-    const pinOn = !!cls.pinRequired;
     P('students').innerHTML = `
       <div class="frame" style="margin-bottom:12px;max-width:640px"><h2>학생 등록</h2>
         <p class="small muted" style="margin-top:0">이름을 한 줄에 한 명씩 적으세요. 번호를 안 쓰면 <b>${nextNo}번</b>부터 차례로 붙고,
@@ -278,35 +255,21 @@ export async function startTeacher(root, { user, onLogout }) {
         <textarea class="input" rows="6" data-x="names" placeholder="김하늘&#10;이도윤&#10;7 박서연"></textarea>
         <button class="btn primary" style="margin-top:8px" data-x="add">등록</button></div>
       <div class="frame" style="max-width:640px"><div class="row" style="flex-wrap:wrap;margin-bottom:6px"><h2 class="grow" style="margin:0">학생 목록 (${students.length}명${nLeft ? ` · 전학 ${nLeft}명` : ''})</h2>
-        ${pinOn ? '<button class="btn small" data-x="pinsall">비밀번호 한꺼번에 만들기</button>' : ''}</div>
+</div>
         <p class="small muted" style="margin-top:0">전학 간 친구는 <b>전학</b>을 누르세요. 입장이 막히고 다독왕에서 빠지지만, 쌓은 책은 반 탑에 남아요.
-        새로 온 친구는 새 번호로 등록하세요 (옛 번호를 이어 쓰지 않아요).
-        ${pinOn ? '' : '학생 비밀번호는 설정 탭에서 켤 수 있어요.'}</p>
-        <div class="scroll-x"><table class="grid"><tr><th>${numHead()}</th><th>이름</th><th>책</th>${pinOn ? '<th>비밀번호</th>' : ''}<th></th></tr>
+        새로 온 친구는 새 번호로 등록하세요 (옛 번호를 이어 쓰지 않아요).</p>
+        <div class="scroll-x"><table class="grid"><tr><th>${numHead()}</th><th>이름</th><th>책</th><th></th></tr>
         ${students.map(s => `<tr${s.left ? ' style="opacity:.6"' : ''}><td class="num">${s.number}</td>
           <td>${esc(s.name)}${s.left ? ' <span class="warn small">전학</span>' : ''}</td><td class="num">${cnt.get(s.id) || 0}권</td>
-          ${pinOn ? `<td style="white-space:nowrap">${s.pinHash ? '설정됨' : '<span class="warn">없음</span>'} <button class="btn small" data-spin="${s.id}">${s.pinHash ? '바꾸기' : '정하기'}</button></td>` : ''}
           <td style="white-space:nowrap"><button class="btn small" data-srename="${s.id}">이름</button>
             <button class="btn small" data-sleft="${s.id}">${s.left ? '복귀' : '전학'}</button>
             <button class="btn small danger" data-sdel="${s.id}">삭제</button></td></tr>`).join('')}
-        ${students.length ? '' : `<tr><td colspan="${pinOn ? 5 : 4}" class="muted">아직 학생이 없어요</td></tr>`}</table></div></div>`;
+        ${students.length ? '' : `<tr><td colspan="4" class="muted">아직 학생이 없어요</td></tr>`}</table></div></div>`;
     X('add').onclick = async () => {
       const r = parseStudentLines(X('names').value, students.map(s => s.number), hakbunBase(cls));
       if (r.error) return toast(r.error);
       try { await api.addStudents(cls.id, r.entries); toast(`${r.entries.length}명을 등록했어요 (${r.entries.map(e => e.number).join(', ')}${usesHakbun(cls) ? '' : '번'})`); await reload(); } catch (e) { toast(errMsg(e)); }
     };
-    if (pinOn) {
-      X('pinsall').onclick = async () => {
-        const targets = students.filter(s => !s.left);
-        if (!targets.length) return toast('등록된 학생이 없어요');
-        if (!await confirmBox(`전학 가지 않은 ${targets.length}명 모두의 비밀번호를 새로 만들어요.\n이미 있는 비밀번호도 바뀌어요. 계속할까요?`, '만들기', { tone: 'primary' })) return;
-        try { await makePins(targets, `비밀번호 ${targets.length}명`); } catch (e) { toast(errMsg(e)); }
-      };
-      P('students').querySelectorAll('[data-spin]').forEach(btn => btn.onclick = async () => {
-        const s = students.find(x => x.id === btn.dataset.spin);
-        try { await makePins([s], `${nl(s.number)} ${s.name} 비밀번호`); } catch (e) { toast(errMsg(e)); }
-      });
-    }
     P('students').querySelectorAll('[data-srename]').forEach(btn => btn.onclick = async () => {
       const s = students.find(x => x.id === btn.dataset.srename);
       const name = await promptBox(`${nl(s.number)} 이름 고치기`, '', { value: s.name, ok: '저장', max: 30 });
@@ -334,7 +297,6 @@ export async function startTeacher(root, { user, onLogout }) {
   }
 
   function renderSettings() {
-    const pinOn = !!cls.pinRequired;
     P('settings').innerHTML = `<form class="frame" style="max-width:460px;margin-bottom:12px" data-x="setform">
       <h2>설정</h2>
       <label class="field"><span>학급 이름</span><input class="input" name="cname" maxlength="50" required value="${esc(cls.name)}"></label>
@@ -342,11 +304,6 @@ export async function startTeacher(root, { user, onLogout }) {
       <p class="small muted">학생 입장용 반 코드: <b class="code" style="padding:0 6px">${esc(cls.code)}</b></p>
       ${usesHakbun(cls) ? `<p class="small muted">학번 방식: ${cls.grade}학년 ${cls.room}반 (예: 1번 → ${hakbun(cls.grade, cls.room, 1)})</p>` : ''}
       <button class="btn primary">저장</button></form>
-      <div class="frame" style="max-width:460px;margin-bottom:12px"><h2>학생 비밀번호 (선택)</h2>
-        <p class="small muted" style="margin-top:0">켜면 학생이 반 코드·번호와 함께 <b>숫자 4자리 비밀번호</b>를 넣어야 들어와요. 친구가 번호만 알고 들어오는 장난을 막아 줘요.
-        (장난 방지용이고, 강한 보안은 아니에요.)</p>
-        <p class="small">지금: <b>${pinOn ? '켜짐' : '꺼짐'}</b></p>
-        <button class="btn ${pinOn ? '' : 'blue'}" data-x="pintoggle">${pinOn ? '끄기' : '켜기'}</button></div>
       <div class="frame" style="max-width:460px"><h2>반 관리</h2>
         <p class="small muted" style="margin-top:0">지우기 전에 <b>기록 점검</b> 탭에서 CSV로 받아 두세요.</p>
         <p class="small"><b>새 학기 준비</b> — 책 기록만 모두 지우고, 반과 학생은 그대로 둬요.</p>
@@ -363,10 +320,6 @@ export async function startTeacher(root, { user, onLogout }) {
         toast('저장했어요');
         await reload();
       } catch (err) { toast(errMsg(err)); }
-    };
-    X('pintoggle').onclick = async () => {
-      if (!pinOn && !await confirmBox('켜면 비밀번호가 없는 학생은 입장할 수 없어요.\n켠 뒤 학생 탭에서 \'비밀번호 한꺼번에 만들기\'를 눌러 주세요. 켤까요?', '켜기', { tone: 'primary' })) return;
-      try { await api.updateClass(cls.id, { pinRequired: !pinOn }); cls.pinRequired = !pinOn; toast(pinOn ? '비밀번호를 껐어요' : '비밀번호를 켰어요. 학생 탭에서 비밀번호를 만들어 주세요'); await reload(); } catch (err) { toast(errMsg(err)); }
     };
     X('clearbooks').onclick = async () => {
       if (!await typedConfirm(`책 기록 ${books.length}권을 모두 지워요. 계속하려면 반 이름을 그대로 적어 주세요.`, '모두 지우기')) return;

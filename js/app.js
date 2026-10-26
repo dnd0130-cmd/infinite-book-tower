@@ -30,7 +30,6 @@ function showLogin() {
         <label class="field"><span>반 코드</span><input class="input" name="code" maxlength="12" required autocapitalize="characters" spellcheck="false" style="text-transform:uppercase;letter-spacing:3px" value="${last?.code || ''}"></label>
         <label class="field"><span>내 학번 (번호)</span><input class="input" name="number" type="number" inputmode="numeric" min="1" max="99999" required value="${last?.number || ''}" placeholder="예: 4201"></label>
         <p class="small muted" style="margin:-4px 0 8px">4학년 2반 1번이면 <b>4201</b> (학번이 없는 반은 번호)</p>
-        <label class="field ${last?.pin ? '' : 'hidden'}" data-pinwrap><span>비밀번호 (숫자 4자리)</span><input class="input" name="pin" inputmode="numeric" maxlength="4" autocomplete="off" value="${last?.pin || ''}"></label>
         <button class="btn primary" style="width:100%">입장하기</button>
       </form>
       <form class="frame" data-f="teacher">
@@ -50,7 +49,7 @@ function showLogin() {
   $('[data-f="student"]', root).onsubmit = async e => {
     e.preventDefault();
     const f = e.target;
-    await enterStudent(f.code.value.trim().toUpperCase(), Number(f.number.value), true, f.pin.value.trim() || undefined);
+    await enterStudent(f.code.value.trim().toUpperCase(), Number(f.number.value), true);
   };
   $('[data-privacy]', root).onclick = () => privacyDialog();
   $('[data-google]', root).onclick = async () => {
@@ -89,27 +88,19 @@ function showLogin() {
   };
 }
 
-// 비밀번호 칸을 보여 준다 (선생님이 비밀번호를 켠 반일 때만 필요)
-function revealPin() {
-  let w = $('[data-pinwrap]', root);
-  if (!w) { showLogin(); w = $('[data-pinwrap]', root); }
-  w.classList.remove('hidden'); w.querySelector('input').focus();
-}
-
-async function enterStudent(code, number, fromForm, pin) {
+async function enterStudent(code, number, fromForm) {
   if (!/^[A-Z0-9]{6,12}$/.test(code) || !(number > 0)) { toast('반 코드나 학번(번호)을 다시 확인해 주세요'); return false; }
   try {
-    const data = await api.studentData(code, number, pin);
+    const data = await api.studentData(code, number);
     if (!data) {
       if (fromForm) toast('반 코드나 학번(번호)을 다시 확인해 주세요');
       return false;
     }
     const num = data.me.number;            // 출석번호만 쳐도 이 반의 학번으로 바뀌어 있다
-    saved.set({ code, number: num, pin });
-    await startStudent(root, { code, number: num, pin, data, onLogout: () => { saved.clear(); showLogin(); } });
+    saved.set({ code, number: num });
+    await startStudent(root, { code, number: num, data, onLogout: () => { saved.clear(); showLogin(); } });
     return true;
   } catch (e) {
-    if (e.needPin) revealPin();
     toast(errMsg(e));
     return false;
   }
@@ -137,7 +128,7 @@ async function boot() {
     if (user) return startTeacher(root, { user, onLogout: showLogin });
   } catch { /* 로그인 정보 확인 실패는 로그인 화면으로 */ }
   const last = saved.get();
-  if (last && await enterStudent(last.code, last.number, false, last.pin)) return;
+  if (last && await enterStudent(last.code, last.number, false)) return;
   showLogin();
 }
 

@@ -263,24 +263,6 @@ export function goalCheck(prev, reached) {
   return { popup: prev === 0 && reached, store };
 }
 
-// 학생 비밀번호(4자리). 원문은 저장하지 않고 SHA-256 해시만 저장한다 (반 코드·번호를 섞어 같은 숫자도 다른 값이 되게).
-// 같은 반 친구가 번호만 알고 들어오는 장난을 막는 용도이며, 강한 보안은 아니다.
-export const validPin = s => /^\d{4}$/.test(String(s ?? ''));
-export async function pinHash(code, number, pin) {
-  const data = new TextEncoder().encode(`bt:${String(code).trim().toUpperCase()}:${Number(number)}:${pin}`);
-  const buf = await crypto.subtle.digest('SHA-256', data);
-  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-}
-// 학생 입장 때 비밀번호 확인. 반이 비밀번호를 쓰지 않으면 통과. needPin 표시가 붙은 오류를 던진다
-export async function checkStudentPin(cls, me, code, number, pin) {
-  if (!cls?.pinRequired) return;
-  const err = m => Object.assign(new Error(m), { needPin: true });
-  if (!me.pinHash) throw err('아직 비밀번호가 없어요. 선생님께 받아 오세요');
-  if (!validPin(pin)) throw err('선생님께 받은 비밀번호(숫자 4자리)를 적어 주세요');
-  if (await pinHash(code, number, pin) !== me.pinHash) throw err('비밀번호가 맞지 않아요');
-}
-export const randomPin = (rand = n => crypto.getRandomValues(new Uint32Array(1))[0] % n) => String(rand(10000)).padStart(4, '0');
-
 // 받침에 맞는 조사: josa('박서연', '이', '가') → '이', josa('하루', '이', '가') → '가'. 한글이 아니면 받침 없는 쪽을 쓴다
 export function josa(word, withBatchim, without) {
   const c = String(word ?? '').trim().slice(-1).charCodeAt(0);
