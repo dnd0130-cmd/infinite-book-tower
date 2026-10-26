@@ -200,6 +200,10 @@ export const genCode = (rand = Math.random) =>
 // 책 표지색: (학생 번호 − 1) % 팔레트 길이
 export const coverIndex = (number, paletteLen = 8) => (((number - 1) % paletteLen) + paletteLen) % paletteLen;
 
+// 이 쪽수 이상이면 쌓기 전에 "정말 맞나요?" 하고 한 번 되묻는다 (10쪽을 1000쪽으로 쓰는 실수 방지)
+export const CONFIRM_PAGES = 500;
+export const needsPageConfirm = pages => pages >= CONFIRM_PAGES;
+
 // 입력 검증 (8장). 통과하면 다듬은 값, 아니면 { error }
 export function validateBook({ title, pages, note }) {
   const t = String(title ?? '').trim();

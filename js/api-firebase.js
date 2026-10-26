@@ -6,7 +6,7 @@
 import { initializeApp } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-app.js';
 import {
   getAuth, connectAuthEmulator, signInWithEmailAndPassword, createUserWithEmailAndPassword,
-  signInWithPopup, GoogleAuthProvider, signOut,
+  signInWithPopup, GoogleAuthProvider, signOut, sendPasswordResetEmail,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   getFirestore, connectFirestoreEmulator, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
@@ -20,6 +20,7 @@ const KO = {
   'auth/wrong-password': '이메일이나 비밀번호가 맞지 않아요',
   'auth/user-not-found': '이메일이나 비밀번호가 맞지 않아요',
   'auth/invalid-email': '이메일 주소를 확인해 주세요',
+  'auth/missing-email': '이메일을 적어 주세요',
   'auth/email-already-in-use': '이미 가입된 이메일이에요',
   'auth/weak-password': '비밀번호는 6자 이상으로 해 주세요',
   'auth/too-many-requests': '시도가 너무 많아요. 잠시 뒤에 다시 해 주세요',
@@ -46,6 +47,7 @@ export function createApi() {
   const emulator = new URLSearchParams(location.search).has('emulator');      // 시험용: 내 컴퓨터의 가짜 서버에 연결
   const app = initializeApp(emulator ? { apiKey: 'demo-key', authDomain: 'localhost', projectId: 'demo-bt', appId: 'demo' } : FIREBASE_CONFIG);
   const auth = getAuth(app), db = getFirestore(app);
+  auth.languageCode = 'ko';                       // 비밀번호 재설정 메일 등을 한국어로
   if (emulator) {
     connectFirestoreEmulator(db, '127.0.0.1', 8080);
     connectAuthEmulator(auth, 'http://127.0.0.1:9099', { disableWarnings: true });
@@ -104,6 +106,10 @@ export function createApi() {
     signIn: wrap((email, pw) => signInWithEmailAndPassword(auth, email, pw)),
     signUp: wrap(async (email, pw) => { await createUserWithEmailAndPassword(auth, email, pw); return { needsConfirm: false }; }),
     signInGoogle: wrap(() => { const p = new GoogleAuthProvider(); p.setCustomParameters({ prompt: 'select_account' }); return signInWithPopup(auth, p); }),
+    resetPassword: wrap(async email => {
+      try { await sendPasswordResetEmail(auth, email); }
+      catch (e) { if (e?.code === 'auth/user-not-found') throw new Error('가입된 이메일을 찾을 수 없어요'); throw e; }   // 로그인용 문구와 다르게
+    }),
     signOut: async () => { live?.stop(); live = null; await signOut(auth); },
 
     listClasses: wrap(async () => {

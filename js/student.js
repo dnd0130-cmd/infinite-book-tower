@@ -1,6 +1,6 @@
 // 학생 화면 (명세서 2.2)
 import { api } from './api.js';
-import { heightM, leader, newlyReached, seenKey, validateBook, sortBooks } from './core.js';
+import { heightM, leader, newlyReached, seenKey, validateBook, sortBooks, needsPageConfirm } from './core.js';
 import { createTower } from './tower.js';
 import { icon } from './assets.js';
 import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, breakthroughPopup, showBookNote } from './ui.js';
@@ -61,6 +61,10 @@ export async function startStudent(root, { code, number, data, onLogout }) {
     if (v.error) return toast(v.error);
     const btn = f.querySelector('button'); btn.disabled = true;
     try {
+      if (needsPageConfirm(v.pages) && !await confirmBox(`「${v.title}」 ${fmtN(v.pages)}쪽이 맞나요?\n쪽수를 잘못 쓰면 탑이 엄청 높아져요.`, '맞아요', { cancel: '다시 쓸게요', tone: 'primary' })) {
+        f.pages.focus(); f.pages.select();
+        return;
+      }
       await api.addBook(code, number, v);
       f.reset();
       toast(`「${v.title}」 ${v.pages}쪽을 쌓았어요!`);

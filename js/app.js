@@ -35,6 +35,7 @@ function showLogin() {
         <label class="field"><span>이메일</span><input class="input" name="email" type="email" required autocomplete="username"></label>
         <label class="field"><span>비밀번호</span><input class="input" name="pw" type="password" required minlength="6" autocomplete="current-password"></label>
         <div class="row"><button class="btn blue grow" data-a="in">로그인</button><button class="btn grow" data-a="up">가입</button></div>
+        <button type="button" class="linkbtn" data-reset>비밀번호를 잊었어요</button>
         <div class="or"><span>또는</span></div>
         <button type="button" class="btn" style="width:100%" data-google><span class="gmark">G</span> 구글로 로그인</button>
       </form>
@@ -53,6 +54,15 @@ function showLogin() {
       const user = await api.user();
       if (user) startTeacher(root, { user, onLogout: showLogin });
     } catch (err) { if (!err.silent) toast(errMsg(err)); }
+  };
+  $('[data-reset]', root).onclick = async () => {
+    const email = $('[data-f="teacher"] [name=email]', root).value.trim();
+    if (!email) { toast('위 칸에 이메일을 먼저 적어 주세요'); $('[data-f="teacher"] [name=email]', root).focus(); return; }
+    if (!/^\S+@\S+\.\S+$/.test(email)) return toast('이메일 주소를 확인해 주세요');
+    try {
+      await api.resetPassword(email);
+      toast('비밀번호를 바꾸는 메일을 보냈어요. 메일함(스팸함도)을 확인해 주세요. 구글로 가입했다면 구글 버튼으로 들어오세요');
+    } catch (err) { toast(errMsg(err)); }
   };
   let action = 'in';
   $('[data-f="teacher"]', root).addEventListener('click', e => { if (e.target.dataset?.a) action = e.target.dataset.a; });

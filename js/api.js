@@ -58,6 +58,7 @@ function demoApi() {
     signIn: async email => { user = { email }; },
     signUp: async email => { user = { email }; return { needsConfirm: false }; },
     signInGoogle: async () => { user = { email: 'teacher@gmail.com' }; },
+    resetPassword: async () => wait(null),
     signOut: async () => { user = null; },
     listClasses: async () => wait(classes),
     async createClass(name) { const c = { id: 'c' + uid(), name, code: genCode(), goal_m: 500, cm_per_page: 1, created_at: new Date().toISOString() }; classes.push(c); return wait(c); },

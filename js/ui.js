@@ -66,10 +66,10 @@ export function showBookNote({ title, pages, who, date, note }, onHide) {
 }
 
 /** 확인창. 확인을 누르면 true */
-export function confirmBox(message, okLabel = '삭제') {
+export function confirmBox(message, okLabel = '삭제', { cancel = '취소', tone = 'danger' } = {}) {
   return new Promise(res => {
     const back = openModal(`<p style="white-space:pre-line">${esc(message)}</p>
-      <div class="actions"><button class="btn" data-a="no">취소</button><button class="btn danger" data-a="ok">${esc(okLabel)}</button></div>`);
+      <div class="actions"><button class="btn" data-a="no">${esc(cancel)}</button><button class="btn ${tone}" data-a="ok">${esc(okLabel)}</button></div>`);
     back.addEventListener('click', e => {
       const a = e.target.dataset?.a;
       if (a || e.target === back) { back.remove(); res(a === 'ok'); }

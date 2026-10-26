@@ -175,3 +175,10 @@ test('다독왕: 전학 간 학생은 후보에서 뺀다 (책은 그대로)', (
   assert.deepEqual(C.leader(st, bk), { names: ['가'], pages: 100 });
   assert.equal(C.leader([{ id: 'b', name: '나', left: true }], [book('3', 50, undefined, 'b')]), null);
 });
+
+test('쪽수 확인 기준: 500쪽 이상이면 되묻는다', () => {
+  assert.equal(C.CONFIRM_PAGES, 500);
+  assert.equal(C.needsPageConfirm(499), false);
+  assert.equal(C.needsPageConfirm(500), true);
+  assert.equal(C.needsPageConfirm(3000), true);
+});
