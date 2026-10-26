@@ -1,6 +1,6 @@
 // 교사 화면 (명세서 2.3)
 import { api } from './api.js';
-import { heightM, leader, statsByStudent, suspicious, parseStudentLines, toCsv, numberLabel, usesHakbun, hakbunBase, hakbun, validateClassCode, normalizeCode, genCode } from './core.js';
+import { heightM, leader, statsByStudent, suspicious, parseStudentLines, toCsv, numberLabel, usesHakbun, hakbunBase, hakbun, validateClassCode, genCode } from './core.js';
 import { createTower } from './tower.js';
 import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, downloadCsv, qrDialog } from './ui.js';
 
@@ -266,7 +266,8 @@ export async function startTeacher(root, { user, onLogout }) {
         ${usesHakbun(cls) ? `<br>학번 방식이에요: 번호 <b>1</b>번은 학번 <b>${hakbun(cls.grade, cls.room, 1)}</b>이 되고, 학생은 학번(또는 번호만)을 입력해 들어와요.` : ''}</p>
         <p class="small muted">이름은 <b>별명이나 이니셜(예: 김하)</b>로 등록해도 돼요. 이름 말고 다른 개인정보는 받지 않아요.</p>
         <textarea class="input" rows="6" data-x="names" placeholder="김하늘&#10;이도윤&#10;7 박서연"></textarea>
-        <button class="btn primary" style="margin-top:8px" data-x="add">등록</button></div>
+        <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn primary" data-x="add">등록</button>
+        <button class="btn" data-x="addme" title="선생님도 학생처럼 책을 쌓을 수 있어요">선생님도 참여하기</button></div></div>
       <div class="frame" style="max-width:640px"><div class="row" style="flex-wrap:wrap;margin-bottom:6px"><h2 class="grow" style="margin:0">학생 목록 (${students.length}명${nLeft ? ` · 전학 ${nLeft}명` : ''})</h2>
 </div>
         <p class="small muted" style="margin-top:0">전학 간 친구는 <b>전학</b>을 누르세요. 입장이 막히고 다독왕에서 빠지지만, 쌓은 책은 반 탑에 남아요.
@@ -278,6 +279,13 @@ export async function startTeacher(root, { user, onLogout }) {
             <button class="btn small" data-sleft="${s.id}">${s.left ? '복귀' : '전학'}</button>
             <button class="btn small danger" data-sdel="${s.id}">삭제</button></td></tr>`).join('')}
         ${students.length ? '' : `<tr><td colspan="4" class="muted">아직 학생이 없어요</td></tr>`}</table></div></div>`;
+    X('addme').onclick = async () => {
+      const base = hakbunBase(cls), used = new Set(students.map(s => s.number));
+      if (students.some(s => s.name === '선생님' && !s.left)) return toast('선생님은 이미 등록되어 있어요');
+      let seat = 99; while (seat > 1 && used.has(base + seat)) seat--;            // 99번부터 거꾸로 빈 번호를 쓴다
+      const no = base + seat;
+      try { await api.addStudents(cls.id, [{ number: no, name: '선생님' }]); toast(`선생님을 등록했어요. 학생 입장 화면에 ${no}를 입력하면 들어가요`); await reload(); } catch (e) { toast(errMsg(e)); }
+    };
     X('add').onclick = async () => {
       const r = parseStudentLines(X('names').value, students.map(s => s.number), hakbunBase(cls));
       if (r.error) return toast(r.error);
