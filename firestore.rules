@@ -31,7 +31,8 @@ service cloud.firestore {
 
       allow create: if request.auth != null
         && code.matches('[A-Z0-9]{6}')
-        && request.resource.data.keys().hasOnly(['code', 'name', 'goal_m', 'cm_per_page', 'teacherUid', 'created_at'])
+        && request.resource.data.keys().hasOnly(['code', 'name', 'goal_m', 'cm_per_page', 'teacherUid', 'created_at', 'pinRequired'])
+        && (!('pinRequired' in request.resource.data) || request.resource.data.pinRequired is bool)
         && request.resource.data.teacherUid == request.auth.uid
         && request.resource.data.code == code
         && nonBlank(request.resource.data.name) && request.resource.data.name.size() <= 50
@@ -41,7 +42,8 @@ service cloud.firestore {
 
       allow update: if request.auth != null
         && resource.data.teacherUid == request.auth.uid
-        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'goal_m', 'cm_per_page'])
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['name', 'goal_m', 'cm_per_page', 'pinRequired'])
+        && (!('pinRequired' in request.resource.data) || request.resource.data.pinRequired is bool)
         && nonBlank(request.resource.data.name) && request.resource.data.name.size() <= 50
         && request.resource.data.goal_m is number && request.resource.data.goal_m > 0 && request.resource.data.goal_m <= 100000
         && request.resource.data.cm_per_page is number && request.resource.data.cm_per_page > 0 && request.resource.data.cm_per_page <= 100;
@@ -51,7 +53,8 @@ service cloud.firestore {
       match /students/{number} {
         allow read: if true;
         allow create, update: if isTeacherOf(code)
-          && request.resource.data.keys().hasOnly(['number', 'name', 'left'])
+          && request.resource.data.keys().hasOnly(['number', 'name', 'left', 'pinHash'])
+          && (!('pinHash' in request.resource.data) || (request.resource.data.pinHash is string && request.resource.data.pinHash.matches('[0-9a-f]{64}')))
           && (!('left' in request.resource.data) || request.resource.data.left is bool)
           && request.resource.data.number is int
           && string(request.resource.data.number) == number
@@ -71,8 +74,11 @@ service cloud.firestore {
           && request.resource.data.pages is int && request.resource.data.pages >= 1 && request.resource.data.pages <= 3000
           && nonBlank(request.resource.data.note) && request.resource.data.note.size() <= 200
           && request.resource.data.created_at == request.time;
-        // 책은 고칠 수 없고, 지우기만 가능 (학생 본인 확인은 화면에서 한다)
-        allow update: if false;
+        // 제목·쪽수·한 줄 느낌만 고칠 수 있다 (쓴 사람 확인은 화면에서 한다). 쪽수·글자 수 규칙은 쌓을 때와 같다.
+        allow update: if request.resource.data.diff(resource.data).affectedKeys().hasOnly(['title', 'pages', 'note'])
+          && nonBlank(request.resource.data.title) && request.resource.data.title.size() <= 100
+          && request.resource.data.pages is int && request.resource.data.pages >= 1 && request.resource.data.pages <= 3000
+          && nonBlank(request.resource.data.note) && request.resource.data.note.size() <= 200;
         allow delete: if true;
       }
     }

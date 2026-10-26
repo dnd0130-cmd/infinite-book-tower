@@ -258,3 +258,42 @@ table.grid td.num { text-align: right; }
 .linkbtn { display: block; margin: 8px auto 0; background: none; border: 0; padding: 0; cursor: pointer; color: var(--accent-2, #3b7be8);
   font-family: var(--font-s); font-size: 12px; text-decoration: underline; }
 .linkbtn:hover { filter: brightness(1.2); }
+
+/* 줄마다 붙는 작은 버튼 묶음 */
+.rowbtns { display: flex; gap: 4px; flex: none; }
+
+/* 색종이 */
+.modal { position: relative; overflow: hidden; }
+.confetti { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.confetti i { position: absolute; top: -10px; left: var(--x); width: 8px; height: 8px; background: var(--c);
+  animation: confetti-fall var(--t) linear var(--d) infinite; }
+@keyframes confetti-fall { from { transform: translateY(0) rotate(0); } to { transform: translateY(420px) rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .confetti i { animation: none; top: 12px; } }
+
+/* 하늘색 배경 위의 작은 글자 버튼 */
+.linkbtn.on-sky { color: #fff; text-shadow: 1px 1px 0 var(--ink); margin-top: 18px; position: relative; z-index: 1; }
+
+/* ── 교실 TV 화면 (?tv=반코드) ── */
+.tv-head { display: flex; align-items: center; gap: 20px; padding: 8px 20px; flex-wrap: wrap; background: var(--paper);
+  border-bottom: var(--u) solid var(--ink); box-shadow: 0 var(--u) 0 #c9ad6d; }
+.tv-title { font-size: 26px; color: #6a3a1a; white-space: nowrap; }
+.tv-logo { font-family: 'Galmuri11'; font-weight: 700; margin-right: 8px; }
+.tv-stats { display: flex; gap: 22px; font-size: 18px; flex: 1; flex-wrap: wrap; align-items: baseline; justify-content: center; }
+.tv-stats b { font-size: 26px; color: #6a3a1a; margin-right: 4px; }
+.tv-goal { display: flex; align-items: center; gap: 10px; }
+.tv-goal { align-self: center; }
+.tv-goal .bar { width: 160px; }
+.tv-full { margin-left: auto; }
+.tv-main { flex: 1; display: flex; min-height: 0; padding: 12px; }
+.tv-main .tower { flex: 1; min-width: 0; }
+.tv .tw-zoom { display: none; }
+.tv .tw-chip, .tv .tw-leader { font-size: 22px; }
+.tv .tw-bubble { font-size: 20px; }
+.tv .tw-lm-label, .tv .tw-goal-label { font-size: 16px; }
+.tv .tw-tick-label { font-size: 14px; }
+.tv-banner { position: fixed; left: 50%; bottom: 40px; transform: translateX(-50%); z-index: 45; width: min(1100px, calc(100% - 40px));
+  text-align: center; padding: 16px 28px; border-image-source: url('../assets/ui/panel-yellow.png'); animation: nc-in .2s steps(3); overflow: hidden; }
+.tv-banner.celebrate { border-image-source: url('../assets/ui/panel-gold.png'); }
+.tv-b1 { font-size: 32px; font-weight: 700; overflow-wrap: anywhere; }
+.tv-b2 { font-size: 22px; margin-top: 6px; color: var(--muted); overflow-wrap: anywhere; }
+.tv-msg { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; z-index: 40; font-size: 28px; text-align: center; padding: 24px; }

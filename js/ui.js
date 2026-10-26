@@ -1,5 +1,5 @@
 // 공통 화면 부품: 알림, 확인창, 설명 카드, 돌파 팝업, 도감
-import { escapeHtml as esc, SIL_FAR } from './core.js';
+import { escapeHtml as esc, SIL_FAR, validateBook } from './core.js';
 import { getLandmarks } from './landmarks.js';
 import { silhouetteImage } from './sil-render.js';
 import { icon } from './assets.js';
@@ -74,6 +74,67 @@ export function confirmBox(message, okLabel = '삭제', { cancel = '취소', ton
       const a = e.target.dataset?.a;
       if (a || e.target === back) { back.remove(); res(a === 'ok'); }
     });
+  });
+}
+
+/** 책 고치기 창. 저장하면 { title, pages, note }, 취소하면 null */
+export function editBookModal(book) {
+  return new Promise(res => {
+    const back = h(`<div class="modal-back"><form class="modal frame" style="text-align:left"><h3 style="text-align:center">책 고치기</h3>
+      <label class="field"><span>책 제목</span><input class="input" name="title" maxlength="100" required value="${esc(book.title)}"></label>
+      <label class="field"><span>읽은 쪽수 (1~3000)</span><input class="input" name="pages" type="number" inputmode="numeric" min="1" max="3000" step="1" required value="${esc(book.pages)}"></label>
+      <label class="field"><span>한 줄 느낌</span><input class="input" name="note" maxlength="200" required value="${esc(book.note || '')}"></label>
+      <p class="warn small hidden" data-err></p>
+      <div class="actions"><button type="button" class="btn" data-a="no">취소</button><button class="btn primary">저장</button></div></form></div>`);
+    document.body.append(back);
+    const f = back.querySelector('form');
+    f.pages.focus(); f.pages.select();
+    f.onsubmit = e => {
+      e.preventDefault();
+      const v = validateBook({ title: f.title.value, pages: f.pages.value, note: f.note.value });
+      if (v.error) { const p = back.querySelector('[data-err]'); p.textContent = v.error; p.classList.remove('hidden'); return; }
+      back.remove(); res(v);
+    };
+    back.addEventListener('click', e => { if (e.target.dataset?.a === 'no' || e.target === back) { back.remove(); res(null); } });
+  });
+}
+
+/** 떨어지는 색종이 (CSS 애니메이션) */
+export const confettiHtml = (n = 18) => `<div class="confetti" aria-hidden="true">${Array.from({ length: n }, (_, i) =>
+  `<i style="--x:${(i * 53) % 100}%;--d:${((i * 37) % 20) / 10}s;--t:${2 + (i % 4) * 0.4}s;--c:${['#e8743b', '#f4c542', '#3b7be8', '#5cb85c', '#d9534f', '#9b59b6'][i % 6]}"></i>`).join('')}</div>`;
+
+/** 반 목표 달성 축하 팝업 */
+export function goalPopup(goalM) {
+  return new Promise(res => {
+    const back = openModal(`${confettiHtml()}<div class="burst">${icon('star')} 목표 달성! ${icon('star')}</div>
+      <p style="margin:12px 0">우리 반이 목표 <b>${fmtM(goalM)}</b>를 해냈어요!<br>모두 함께 읽은 덕분이에요.</p>
+      <div class="actions"><button class="btn primary" data-a="ok">만세!</button></div>`);
+    back.addEventListener('click', e => { if (e.target.dataset?.a) { back.remove(); res(); } });
+  });
+}
+
+/** CSV 파일 내려받기 (text는 core.js의 toCsv 결과) */
+export function downloadCsv(filename, text) {
+  const url = URL.createObjectURL(new Blob([text], { type: 'text/csv;charset=utf-8' }));
+  const a = document.createElement('a');
+  a.href = url; a.download = filename; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 2000);
+}
+
+/** 개인정보 안내 */
+export function privacyDialog() {
+  return new Promise(res => {
+    const back = openModal(`<h3>저장하는 정보</h3>
+      <ul class="small" style="text-align:left;margin:8px 0;padding-left:18px;line-height:1.7">
+        <li>반 이름, 반 코드, 학생 번호와 <b>이름(또는 별명)</b></li>
+        <li>학생이 적은 책 제목, 읽은 쪽수, 한 줄 느낌, 날짜</li>
+        <li>선생님의 로그인 이메일(구글 또는 이메일 계정)</li>
+        <li>학생의 사진, 연락처, 학교·주소는 <b>받지 않아요</b>.</li>
+      </ul>
+      <p class="small" style="text-align:left">이름은 <b>별명이나 이니셜(예: 김하)</b>로 등록해도 돼요. 데이터는 Google Firebase에 저장되고,
+      반 코드를 아는 사람만 그 반의 기록을 볼 수 있어요. 선생님은 언제든 학생이나 반을 지울 수 있어요.</p>
+      <div class="actions"><button class="btn primary" data-a="ok">확인</button></div>`);
+    back.addEventListener('click', e => { if (e.target.dataset?.a || e.target === back) { back.remove(); res(); } });
   });
 }
 

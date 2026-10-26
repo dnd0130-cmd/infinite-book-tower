@@ -13,7 +13,7 @@ import {
   query, where, orderBy, writeBatch, onSnapshot, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { FIREBASE_CONFIG } from './firebase-config.js';
-import { genCode } from './core.js';
+import { genCode, checkStudentPin } from './core.js';
 
 const KO = {
   'auth/invalid-credential': '이메일이나 비밀번호가 맞지 않아요',
@@ -54,23 +54,34 @@ export function createApi() {
   }
 
   const iso = ts => (ts?.toDate ? ts.toDate() : ts ? new Date(ts) : new Date()).toISOString();
-  const mapClass = d => { const x = d.data(); return { id: d.id, code: d.id, name: x.name, goal_m: x.goal_m, cm_per_page: x.cm_per_page, created_at: iso(x.created_at) }; };
-  const mapStudent = d => { const x = d.data(); return { id: d.id, number: x.number, name: x.name, left: x.left === true }; };
+  const mapClass = d => { const x = d.data(); return { id: d.id, code: d.id, name: x.name, goal_m: x.goal_m, cm_per_page: x.cm_per_page, pinRequired: x.pinRequired === true, created_at: iso(x.created_at) }; };
+  const mapStudent = d => { const x = d.data(); return { id: d.id, number: x.number, name: x.name, left: x.left === true, pinHash: x.pinHash || null }; };
   const mapBook = d => { const x = d.data({ serverTimestamps: 'estimate' }); return { id: d.id, student_id: String(x.student_number), title: x.title, pages: x.pages, note: x.note ?? '', created_at: iso(x.created_at) }; };
   const sub = (code, name) => collection(db, 'classes', code, name);
   const normCode = c => String(c).trim().toUpperCase();
+
+  // 하위 문서를 400개씩 묶어 모두 지운다 (한 번에 쓸 수 있는 개수 제한)
+  async function deleteAll(colRef) {
+    const s = await getDocs(colRef);
+    for (let i = 0; i < s.docs.length; i += 400) {
+      const b = writeBatch(db);
+      s.docs.slice(i, i + 400).forEach(d => b.delete(d.ref));
+      await b.commit();
+    }
+  }
 
   // ── 학생: 반 하나를 실시간으로 지켜보며 보관해 둔다. 30초마다 불러도 서버를 읽지 않아 읽기 횟수가 늘지 않는다.
   let live = null;
   function watch(code) {
     if (live?.code === code) return live.ready.then(() => live);
     live?.stop();
-    const st = { code, cls: null, students: [], books: [], stops: [] };
+    const st = { code, cls: null, students: [], books: [], stops: [], listeners: new Set() };
     st.stop = () => st.stops.forEach(f => f());
+    const notify = () => st.listeners.forEach(f => f({ cls: st.cls, students: st.students, books: st.books }));
     let pending = 3;
     st.ready = new Promise((resolve, reject) => {
       const first = () => { if (--pending === 0) resolve(); };
-      const once = (cb) => { let done = false; return snap => { cb(snap); if (!done) { done = true; first(); } }; };
+      const once = (cb) => { let done = false; return snap => { cb(snap); if (!done) { done = true; first(); } else notify(); }; };
       const fail = e => { if (live === st) live = null; st.stop(); reject(e); };
       st.stops.push(onSnapshot(doc(db, 'classes', code), once(s => { st.cls = s.exists() ? mapClass(s) : null; }), fail));
       st.stops.push(onSnapshot(sub(code, 'students'), once(s => { st.students = s.docs.map(mapStudent).sort((a, b) => a.number - b.number); }), fail));
@@ -82,13 +93,29 @@ export function createApi() {
 
   return {
     // 학생 (로그인 없음)
-    studentData: wrap(async (code, number) => {
+    studentData: wrap(async (code, number, pin) => {
       code = normCode(code);
       const st = await watch(code);
       const me = st.students.find(s => s.number === Number(number));
       if (!st.cls || !me) return null;
       if (me.left) throw new Error('이 번호는 지금 쓸 수 없어요. 선생님께 물어보세요');
+      await checkStudentPin(st.cls, me, code, number, pin);
       return { cls: st.cls, me, students: st.students, books: st.books };
+    }),
+    // 반 하나를 실시간으로 지켜본다 (교실 TV). cb({ cls, students, books })를 지금 한 번, 바뀔 때마다 부른다. 해제 함수를 돌려준다
+    subscribeClass: wrap(async (code, cb) => {
+      const st = await watch(normCode(code));
+      cb({ cls: st.cls, students: st.students, books: st.books });
+      st.listeners.add(cb);
+      return () => st.listeners.delete(cb);
+    }),
+    // 내 책 고치기: 쓴 사람(번호)이 맞을 때만. 서버 규칙은 제목·쪽수·느낌 변경만 허용한다
+    updateBook: wrap(async (code, number, id, v) => {
+      const ref = doc(db, 'classes', normCode(code), 'books', id);
+      const s = await getDoc(ref);
+      if (!s.exists()) throw new Error('이미 지워진 책이에요');
+      if (s.data().student_number !== Number(number)) throw new Error('내가 쌓은 책만 고칠 수 있어요');
+      await updateDoc(ref, { title: v.title, pages: v.pages, note: v.note });
     }),
     addBook: wrap(async (code, number, b) => {
       await addDoc(sub(normCode(code), 'books'), { student_number: Number(number), title: b.title, pages: b.pages, note: b.note, created_at: serverTimestamp() });
@@ -146,6 +173,19 @@ export function createApi() {
       mine.docs.forEach(d => batch.delete(d.ref));
       batch.delete(doc(db, 'classes', classId, 'students', id));
       await batch.commit();
+    }),
+    // 학생 비밀번호: items = [{ id, hash }] — 원문은 저장하지 않고 해시만 저장한다
+    setPins: wrap(async (classId, items) => {
+      for (let i = 0; i < items.length; i += 400) {
+        const b = writeBatch(db);
+        items.slice(i, i + 400).forEach(it => b.update(doc(db, 'classes', classId, 'students', it.id), { pinHash: it.hash }));
+        await b.commit();
+      }
+    }),
+    clearBooks: wrap(async classId => { await deleteAll(sub(classId, 'books')); }),
+    deleteClass: wrap(async classId => {
+      await deleteAll(sub(classId, 'books')); await deleteAll(sub(classId, 'students'));
+      await deleteDoc(doc(db, 'classes', classId));
     }),
     listBooks: wrap(async classId => (await getDocs(query(sub(classId, 'books'), orderBy('created_at')))).docs.map(mapBook)),
     deleteBook: wrap(async (classId, id) => { await deleteDoc(doc(db, 'classes', classId, 'books', id)); }),

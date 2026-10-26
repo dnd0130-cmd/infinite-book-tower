@@ -184,3 +184,55 @@ test('쪽수 확인 기준: 500쪽 이상이면 되묻는다', () => {
   assert.equal(C.needsPageConfirm(500), true);
   assert.equal(C.needsPageConfirm(3000), true);
 });
+
+test('CSV: 따옴표·쉼표·줄바꿈 처리, 한글용 BOM, 수식 막기', () => {
+  const s = C.toCsv([['번호', '이름', '느낌'], [1, '김하늘', '재밌다, "정말"'], [2, '이도윤', '줄\n바꿈'], [3, '=SUM(A1)', '+1'], [4, null, '@x']]);
+  assert.ok(s.startsWith('\uFEFF'));
+  const lines = s.slice(1).split('\r\n');
+  assert.equal(lines[0], '번호,이름,느낌');
+  assert.equal(lines[1], '1,김하늘,"재밌다, ""정말"""');
+  assert.equal(lines[2], '2,이도윤,"줄\n바꿈"');       // 칸 안의 줄바꿈은 따옴표로 감싸 한 칸으로 유지
+  assert.equal(lines[3], "3,'=SUM(A1),'+1");        // 수식으로 읽히지 않게
+  assert.equal(lines[4], "4,,'@x");
+  assert.ok(s.endsWith('\r\n'));
+});
+
+test('목표 달성 축하: 아직→달성일 때만 팝업', () => {
+  assert.deepEqual(C.goalCheck(null, true), { popup: false, store: 1 });   // 첫 방문엔 조용히 저장
+  assert.deepEqual(C.goalCheck(null, false), { popup: false, store: 0 });
+  assert.deepEqual(C.goalCheck(0, true), { popup: true, store: 1 });       // 달성하는 순간
+  assert.deepEqual(C.goalCheck(1, true), { popup: false, store: 1 });      // 이미 축하함
+  assert.deepEqual(C.goalCheck(1, false), { popup: false, store: 0 });     // 책 삭제·목표 상향 → 다시 달성하면 또 축하
+});
+
+test('학생 비밀번호: 4자리 검사, 해시는 반·번호에 따라 다름', async () => {
+  assert.equal(C.validPin('0042'), true); assert.equal(C.validPin('123'), false); assert.equal(C.validPin('12a4'), false); assert.equal(C.validPin(1234), true);
+  const a = await C.pinHash('abc234', 1, '1234');
+  assert.match(a, /^[0-9a-f]{64}$/);
+  assert.equal(a, await C.pinHash(' ABC234 ', '1', '1234'));          // 코드 대소문자·공백, 숫자/문자열 번호는 같은 값
+  assert.notEqual(a, await C.pinHash('ABC234', 2, '1234'));           // 번호가 다르면 다른 값
+  assert.notEqual(a, await C.pinHash('XYZ234', 1, '1234'));
+  assert.notEqual(a, await C.pinHash('ABC234', 1, '1235'));
+  assert.equal(C.randomPin(() => 7), '0007'); assert.equal(C.randomPin(() => 9999), '9999');
+  for (let i = 0; i < 200; i++) assert.match(C.randomPin(), /^\d{4}$/);
+});
+
+test('학생 입장 비밀번호 확인', async () => {
+  const hash = await C.pinHash('ABC234', 3, '4821');
+  const me = { number: 3, pinHash: hash };
+  await C.checkStudentPin({ pinRequired: false }, me, 'ABC234', 3, undefined);                    // 쓰지 않는 반은 통과
+  await C.checkStudentPin({ pinRequired: true }, me, 'ABC234', 3, '4821');                         // 맞음
+  await assert.rejects(() => C.checkStudentPin({ pinRequired: true }, me, 'ABC234', 3, '1111'), e => e.needPin && /맞지 않아요/.test(e.message));
+  await assert.rejects(() => C.checkStudentPin({ pinRequired: true }, me, 'ABC234', 3, ''), e => e.needPin && /4자리/.test(e.message));
+  await assert.rejects(() => C.checkStudentPin({ pinRequired: true }, { number: 3 }, 'ABC234', 3, '4821'), e => e.needPin && /아직 비밀번호가 없어요/.test(e.message));
+});
+
+test('조사: 받침에 따라 이/가', () => {
+  assert.equal(C.josa('박서연', '이', '가'), '이');   // 연: 받침 ㄴ
+  assert.equal(C.josa('김하늘', '이', '가'), '이');   // 늘: 받침 ㄹ
+  assert.equal(C.josa('하루', '이', '가'), '가');
+  assert.equal(C.josa('이도윤', '이', '가'), '이');
+  assert.equal(C.josa('서연아', '이', '가'), '가');   // 아: 받침 없음
+  assert.equal(C.josa('Tom', '이', '가'), '가');      // 한글이 아니면 받침 없는 쪽
+  assert.equal(C.josa('', '이', '가'), '가');
+});

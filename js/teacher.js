@@ -1,8 +1,8 @@
 // 교사 화면 (명세서 2.3)
 import { api } from './api.js';
-import { heightM, leader, statsByStudent, suspicious, parseStudentLines } from './core.js';
+import { heightM, leader, statsByStudent, suspicious, parseStudentLines, toCsv, pinHash, randomPin } from './core.js';
 import { createTower } from './tower.js';
-import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex } from './ui.js';
+import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, downloadCsv } from './ui.js';
 
 const CLASS_KEY = 'bt_teacher_class';
 const lsGet = k => { try { return localStorage.getItem(k); } catch { return null; } };
@@ -22,7 +22,7 @@ function promptBox(title, placeholder = '', { value = '', ok = '만들기', max 
 }
 
 export async function startTeacher(root, { user, onLogout }) {
-  let classes = [], cls = null, students = [], books = [], tab = 'tower', filter = '';
+  let classes = [], cls = null, students = [], books = [], tab = 'tower', filter = '', unsub = null, liveSig = '';
 
   root.innerHTML = `
   <div class="app">
@@ -58,7 +58,7 @@ export async function startTeacher(root, { user, onLogout }) {
   const towerEl = X('tower');
   const tower = createTower(towerEl);
 
-  X('logout').onclick = async () => { await api.signOut(); onLogout(); };
+  X('logout').onclick = async () => { unsub?.(); unsub = null; await api.signOut(); onLogout(); };
   X('new').onclick = async () => {
     const name = await promptBox('새 반 만들기', '예: 4학년 2반');
     if (!name) return;
@@ -85,6 +85,28 @@ export async function startTeacher(root, { user, onLogout }) {
     [students, books] = await Promise.all([api.listStudents(cls.id), api.listBooks(cls.id)]);
     showTab(tab);
     renderAll({ reset });
+    watchLive();
+  }
+
+  // 학생이 책을 쌓거나 고치면 선생님 화면도 바로 바뀐다 (책탑·기록 점검·학생 목록)
+  async function watchLive() {
+    unsub?.(); unsub = null; liveSig = '';
+    if (!cls) return;
+    const id = cls.id;
+    try {
+      unsub = await api.subscribeClass(cls.code, snap => {
+        if (!cls || cls.id !== id || !snap.cls) return;
+        const sig = JSON.stringify([snap.cls.name, snap.cls.goal_m, !!snap.cls.pinRequired, snap.books.length, snap.books.at(-1)?.id,
+          snap.books.reduce((a, b) => a + b.pages * 31 + b.title.length + (b.note || '').length, 0), snap.students.map(s => `${s.id}${s.name}${s.left ? 1 : 0}${s.pinHash ? 1 : 0}`).join()]);
+        if (sig === liveSig) return;
+        const firstTick = liveSig === ''; liveSig = sig;
+        if (firstTick) return;                                  // 처음 한 번은 방금 불러온 것과 같으므로 건너뜀
+        Object.assign(cls, { name: snap.cls.name, goal_m: snap.cls.goal_m, pinRequired: !!snap.cls.pinRequired });
+        students = snap.students; books = snap.books;
+        renderTower(false); renderCheck();
+        const ta = X('names'); if (!ta || (!ta.value && document.activeElement !== ta)) renderStudents();   // 입력 중인 글을 지우지 않는다
+      });
+    } catch { /* 실시간 연결이 안 돼도 화면은 그대로 쓸 수 있다 */ }
   }
 
   async function reload() { await selectClass(cls.id, { reset: false }); }
@@ -112,7 +134,9 @@ export async function startTeacher(root, { user, onLogout }) {
       <div class="stat"><span>쪽수 · 권수</span><span>${fmtN(pages)}쪽 · ${fmtN(books.length)}권</span></div>
       <div class="small" style="margin-top:6px">목표 ${fmtM(goal)} 중 ${Math.floor(pct)}%</div>
       <div class="bar"><i style="width:${pct}%"></i></div>
-      ${L && !L.allDone ? `<p class="small" style="margin:8px 0 0">다음 목표 <b>${esc(L.next.name)}</b>까지 <b>${fmtM(L.landmark.remainingM)}</b></p>` : ''}`;
+      ${L && !L.allDone ? `<p class="small" style="margin:8px 0 0">다음 목표 <b>${esc(L.next.name)}</b>까지 <b>${fmtM(L.landmark.remainingM)}</b></p>` : ''}
+      <button class="btn small" style="margin-top:10px" data-x="tvbtn">📺 교실 TV로 열기</button>`;
+    X('tvbtn').onclick = () => { const u = new URL(location.href); u.search = ''; for (const k of ['demo', 'emulator']) if (new URL(location.href).searchParams.has(k)) u.searchParams.set(k, ''); u.searchParams.set('tv', cls.code); window.open(u.toString(), '_blank'); };
     if (L) renderDex(X('dex'), L.reachedCount);
   }
 
@@ -123,13 +147,14 @@ export async function startTeacher(root, { user, onLogout }) {
     const list = books.filter(b => !filter || b.student_id === filter).sort((a, b) => b.created_at.localeCompare(a.created_at));
     const nWarn = books.filter(suspicious).length;
     P('check').innerHTML = `
-      <div class="frame" style="margin-bottom:12px"><h2>학생별 현황</h2><div class="scroll-x"><table class="grid">
+      <div class="frame" style="margin-bottom:12px"><div class="row" style="margin-bottom:8px"><h2 class="grow" style="margin:0">학생별 현황</h2><button class="btn small" data-x="csv1">CSV 받기</button></div><div class="scroll-x"><table class="grid">
         <tr><th>번호</th><th>이름</th><th>책 수</th><th>쪽수 합</th><th>높이</th><th>마지막 입력</th></tr>
         ${rows.map(r => `<tr><td class="num">${r.s.number}</td><td>${esc(r.s.name)}${r.s.left ? ' <span class="muted">(전학)</span>' : ''}</td><td class="num">${r.count}</td><td class="num">${fmtN(r.pages)}</td>
           <td class="num">${fmtM(heightM(r.pages, cm))}</td><td>${r.last ? fmtDate(r.last) : '<span class="warn">미입력</span>'}</td></tr>`).join('')}
         ${rows.length ? '' : '<tr><td colspan="6" class="muted">학생 탭에서 학생을 등록해 주세요</td></tr>'}
       </table></div></div>
       <div class="frame"><div class="row" style="margin-bottom:8px;flex-wrap:wrap"><h2 class="grow" style="margin:0">전체 기록 ${nWarn ? `<span class="warn small">⚠️ 확인 필요 ${nWarn}건</span>` : ''}</h2>
+        <button class="btn small" data-x="csv2">CSV 받기</button>
         <select class="input" style="width:auto" data-x="filter"><option value="">전체 학생</option>
         ${students.map(s => `<option value="${s.id}" ${s.id === filter ? 'selected' : ''}>${s.number}번 ${esc(s.name)}${s.left ? ' (전학)' : ''}</option>`).join('')}</select></div>
         <div class="scroll-x"><table class="grid"><tr><th>날짜</th><th>학생</th><th>제목</th><th>쪽수</th><th>한 줄 느낌</th><th></th></tr>
@@ -140,6 +165,18 @@ export async function startTeacher(root, { user, onLogout }) {
         ${list.length ? '' : '<tr><td colspan="6" class="muted">기록이 없어요</td></tr>'}
         </table></div></div>`;
     X('filter').onchange = e => { filter = e.target.value; renderCheck(); };
+    const ymd = iso => new Date(iso).toLocaleDateString('sv-SE');
+    const fname = kind => `${cls.name.replace(/[\\/:*?"<>|]/g, '_')}_${kind}.csv`;
+    X('csv1').onclick = () => {
+      const out = [['번호', '이름', '상태', '책 수', '쪽수 합', '높이(m)', '마지막 입력']];
+      rows.forEach(r => out.push([r.s.number, r.s.name, r.s.left ? '전학' : '', r.count, r.pages, Math.round(heightM(r.pages, cm) * 100) / 100, r.last ? ymd(r.last) : '']));
+      downloadCsv(fname('학생별_요약'), toCsv(out)); toast('학생별 요약을 내려받았어요');
+    };
+    X('csv2').onclick = () => {
+      const out = [['날짜', '번호', '이름', '책 제목', '쪽수', '한 줄 느낌']];
+      books.slice().sort((a, b) => a.created_at.localeCompare(b.created_at)).forEach(b => { const s = name.get(b.student_id); out.push([ymd(b.created_at), s?.number ?? '', s?.name ?? '', b.title, b.pages, b.note || '']); });
+      downloadCsv(fname('전체_기록'), toCsv(out)); toast('전체 기록을 내려받았어요');
+    };
     P('check').querySelectorAll('[data-del]').forEach(btn => btn.onclick = async () => {
       const b = books.find(x => x.id === btn.dataset.del), s = name.get(b.student_id);
       if (!await confirmBox(`${s ? s.name + ' 학생의 ' : ''}「${b.title}」 (${b.pages}쪽) 기록을 삭제할까요?`)) return;
@@ -147,31 +184,70 @@ export async function startTeacher(root, { user, onLogout }) {
     });
   }
 
+  // 비밀번호 결과 창: 원문은 저장하지 않으므로 이 창을 닫으면 다시 볼 수 없다
+  function showPins(list, title) {
+    const back = h(`<div class="modal-back"><div class="modal frame"><h3>${esc(title)}</h3>
+      <p class="small warn" style="margin:4px 0 8px">이 창을 닫으면 비밀번호를 다시 볼 수 없어요. 학생에게 알려 주거나 CSV로 받아 두세요.</p>
+      <div class="scroll-x" style="max-height:50vh;overflow-y:auto"><table class="grid" style="text-align:left"><tr><th>번호</th><th>이름</th><th>비밀번호</th></tr>
+      ${list.map(x => `<tr><td class="num">${x.number}</td><td>${esc(x.name)}</td><td><b style="letter-spacing:3px">${x.pin}</b></td></tr>`).join('')}</table></div>
+      <div class="actions"><button class="btn" data-a="csv">CSV로 받기</button><button class="btn primary" data-a="ok">닫기</button></div></div></div>`);
+    document.body.append(back);
+    back.addEventListener('click', e => {
+      const a = e.target.dataset?.a;
+      if (a === 'csv') downloadCsv(`${cls.name.replace(/[\\/:*?"<>|]/g, '_')}_학생_비밀번호.csv`, toCsv([['번호', '이름', '비밀번호'], ...list.map(x => [x.number, x.name, x.pin])]));
+      else if (a === 'ok') back.remove();
+    });
+  }
+  async function makePins(targets, title) {
+    const list = targets.map(s => ({ ...s, pin: randomPin() }));
+    const items = await Promise.all(list.map(async x => ({ id: x.id, hash: await pinHash(cls.code, x.number, x.pin) })));
+    await api.setPins(cls.id, items);
+    await reload();
+    showPins(list.map(x => ({ number: x.number, name: x.name, pin: x.pin })), title);
+  }
+
   function renderStudents() {
     const cnt = new Map(); books.forEach(b => cnt.set(b.student_id, (cnt.get(b.student_id) || 0) + 1));
     const nextNo = students.length ? Math.max(...students.map(s => s.number)) + 1 : 1;
     const nLeft = students.filter(s => s.left).length;
+    const pinOn = !!cls.pinRequired;
     P('students').innerHTML = `
-      <div class="frame" style="margin-bottom:12px;max-width:600px"><h2>학생 등록</h2>
+      <div class="frame" style="margin-bottom:12px;max-width:640px"><h2>학생 등록</h2>
         <p class="small muted" style="margin-top:0">이름을 한 줄에 한 명씩 적으세요. 번호를 안 쓰면 <b>${nextNo}번</b>부터 차례로 붙고,
         <b>7 박서연</b>처럼 앞에 번호를 쓰면 그 번호로 등록해요.</p>
+        <p class="small muted">이름은 <b>별명이나 이니셜(예: 김하)</b>로 등록해도 돼요. 이름 말고 다른 개인정보는 받지 않아요.</p>
         <textarea class="input" rows="6" data-x="names" placeholder="김하늘&#10;이도윤&#10;7 박서연"></textarea>
         <button class="btn primary" style="margin-top:8px" data-x="add">등록</button></div>
-      <div class="frame" style="max-width:600px"><h2>학생 목록 (${students.length}명${nLeft ? ` · 전학 ${nLeft}명` : ''})</h2>
+      <div class="frame" style="max-width:640px"><div class="row" style="flex-wrap:wrap;margin-bottom:6px"><h2 class="grow" style="margin:0">학생 목록 (${students.length}명${nLeft ? ` · 전학 ${nLeft}명` : ''})</h2>
+        ${pinOn ? '<button class="btn small" data-x="pinsall">비밀번호 한꺼번에 만들기</button>' : ''}</div>
         <p class="small muted" style="margin-top:0">전학 간 친구는 <b>전학</b>을 누르세요. 입장이 막히고 다독왕에서 빠지지만, 쌓은 책은 반 탑에 남아요.
-        새로 온 친구는 새 번호로 등록하세요 (옛 번호를 이어 쓰지 않아요).</p>
-        <div class="scroll-x"><table class="grid"><tr><th>번호</th><th>이름</th><th>책</th><th></th></tr>
+        새로 온 친구는 새 번호로 등록하세요 (옛 번호를 이어 쓰지 않아요).
+        ${pinOn ? '' : '학생 비밀번호는 설정 탭에서 켤 수 있어요.'}</p>
+        <div class="scroll-x"><table class="grid"><tr><th>번호</th><th>이름</th><th>책</th>${pinOn ? '<th>비밀번호</th>' : ''}<th></th></tr>
         ${students.map(s => `<tr${s.left ? ' style="opacity:.6"' : ''}><td class="num">${s.number}</td>
           <td>${esc(s.name)}${s.left ? ' <span class="warn small">전학</span>' : ''}</td><td class="num">${cnt.get(s.id) || 0}권</td>
+          ${pinOn ? `<td style="white-space:nowrap">${s.pinHash ? '설정됨' : '<span class="warn">없음</span>'} <button class="btn small" data-spin="${s.id}">${s.pinHash ? '바꾸기' : '정하기'}</button></td>` : ''}
           <td style="white-space:nowrap"><button class="btn small" data-srename="${s.id}">이름</button>
             <button class="btn small" data-sleft="${s.id}">${s.left ? '복귀' : '전학'}</button>
             <button class="btn small danger" data-sdel="${s.id}">삭제</button></td></tr>`).join('')}
-        ${students.length ? '' : '<tr><td colspan="4" class="muted">아직 학생이 없어요</td></tr>'}</table></div></div>`;
+        ${students.length ? '' : `<tr><td colspan="${pinOn ? 5 : 4}" class="muted">아직 학생이 없어요</td></tr>`}</table></div></div>`;
     X('add').onclick = async () => {
       const r = parseStudentLines(X('names').value, students.map(s => s.number));
       if (r.error) return toast(r.error);
       try { await api.addStudents(cls.id, r.entries); toast(`${r.entries.length}명을 등록했어요 (${r.entries.map(e => e.number).join(', ')}번)`); await reload(); } catch (e) { toast(errMsg(e)); }
     };
+    if (pinOn) {
+      X('pinsall').onclick = async () => {
+        const targets = students.filter(s => !s.left);
+        if (!targets.length) return toast('등록된 학생이 없어요');
+        if (!await confirmBox(`전학 가지 않은 ${targets.length}명 모두의 비밀번호를 새로 만들어요.\n이미 있는 비밀번호도 바뀌어요. 계속할까요?`, '만들기', { tone: 'primary' })) return;
+        try { await makePins(targets, `비밀번호 ${targets.length}명`); } catch (e) { toast(errMsg(e)); }
+      };
+      P('students').querySelectorAll('[data-spin]').forEach(btn => btn.onclick = async () => {
+        const s = students.find(x => x.id === btn.dataset.spin);
+        try { await makePins([s], `${s.number}번 ${s.name} 비밀번호`); } catch (e) { toast(errMsg(e)); }
+      });
+    }
     P('students').querySelectorAll('[data-srename]').forEach(btn => btn.onclick = async () => {
       const s = students.find(x => x.id === btn.dataset.srename);
       const name = await promptBox(`${s.number}번 이름 고치기`, '', { value: s.name, ok: '저장', max: 30 });
@@ -190,13 +266,33 @@ export async function startTeacher(root, { user, onLogout }) {
     });
   }
 
+  // 이름을 그대로 적어야 진행되는 확인 (되돌릴 수 없는 일)
+  async function typedConfirm(message, okLabel) {
+    const v = await promptBox(message, cls.name, { ok: okLabel });
+    if (v == null) return false;
+    if (v !== cls.name) { toast('반 이름이 달라서 취소했어요'); return false; }
+    return true;
+  }
+
   function renderSettings() {
-    P('settings').innerHTML = `<form class="frame" style="max-width:420px" data-x="setform">
+    const pinOn = !!cls.pinRequired;
+    P('settings').innerHTML = `<form class="frame" style="max-width:460px;margin-bottom:12px" data-x="setform">
       <h2>설정</h2>
       <label class="field"><span>학급 이름</span><input class="input" name="cname" maxlength="50" required value="${esc(cls.name)}"></label>
       <label class="field"><span>우리 반 목표 높이 (m)</span><input class="input" name="goal" type="number" min="1" step="any" required value="${cls.goal_m}"></label>
       <p class="small muted">학생 입장용 반 코드: <b class="code" style="padding:0 6px">${esc(cls.code)}</b></p>
-      <button class="btn primary">저장</button></form>`;
+      <button class="btn primary">저장</button></form>
+      <div class="frame" style="max-width:460px;margin-bottom:12px"><h2>학생 비밀번호 (선택)</h2>
+        <p class="small muted" style="margin-top:0">켜면 학생이 반 코드·번호와 함께 <b>숫자 4자리 비밀번호</b>를 넣어야 들어와요. 친구가 번호만 알고 들어오는 장난을 막아 줘요.
+        (장난 방지용이고, 강한 보안은 아니에요.)</p>
+        <p class="small">지금: <b>${pinOn ? '켜짐' : '꺼짐'}</b></p>
+        <button class="btn ${pinOn ? '' : 'blue'}" data-x="pintoggle">${pinOn ? '끄기' : '켜기'}</button></div>
+      <div class="frame" style="max-width:460px"><h2>반 관리</h2>
+        <p class="small muted" style="margin-top:0">지우기 전에 <b>기록 점검</b> 탭에서 CSV로 받아 두세요.</p>
+        <p class="small"><b>새 학기 준비</b> — 책 기록만 모두 지우고, 반과 학생은 그대로 둬요.</p>
+        <button class="btn danger" data-x="clearbooks">책 기록 모두 지우기</button>
+        <p class="small" style="margin-top:16px"><b>반 삭제</b> — 반, 학생, 책 기록이 모두 사라져요. 되돌릴 수 없어요.</p>
+        <button class="btn danger" data-x="delclass">이 반 삭제하기</button></div>`;
     X('setform').onsubmit = async e => {
       e.preventDefault();
       const f = e.target, name = f.cname.value.trim(), goal_m = Number(f.goal.value);
@@ -206,6 +302,23 @@ export async function startTeacher(root, { user, onLogout }) {
         Object.assign(cls, { name, goal_m });
         toast('저장했어요');
         await reload();
+      } catch (err) { toast(errMsg(err)); }
+    };
+    X('pintoggle').onclick = async () => {
+      if (!pinOn && !await confirmBox('켜면 비밀번호가 없는 학생은 입장할 수 없어요.\n켠 뒤 학생 탭에서 \'비밀번호 한꺼번에 만들기\'를 눌러 주세요. 켤까요?', '켜기', { tone: 'primary' })) return;
+      try { await api.updateClass(cls.id, { pinRequired: !pinOn }); cls.pinRequired = !pinOn; toast(pinOn ? '비밀번호를 껐어요' : '비밀번호를 켰어요. 학생 탭에서 비밀번호를 만들어 주세요'); await reload(); } catch (err) { toast(errMsg(err)); }
+    };
+    X('clearbooks').onclick = async () => {
+      if (!await typedConfirm(`책 기록 ${books.length}권을 모두 지워요. 계속하려면 반 이름을 그대로 적어 주세요.`, '모두 지우기')) return;
+      try { await api.clearBooks(cls.id); toast('책 기록을 모두 지웠어요'); await reload(); } catch (err) { toast(errMsg(err)); }
+    };
+    X('delclass').onclick = async () => {
+      if (!await typedConfirm(`「${cls.name}」 반과 학생, 책 기록이 모두 사라져요. 계속하려면 반 이름을 그대로 적어 주세요.`, '반 삭제')) return;
+      try {
+        await api.deleteClass(cls.id);
+        classes = classes.filter(c => c.id !== cls.id);
+        toast('반을 삭제했어요');
+        await selectClass(classes[0]?.id);
       } catch (err) { toast(errMsg(err)); }
     };
   }

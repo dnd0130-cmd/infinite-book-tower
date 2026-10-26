@@ -3,9 +3,10 @@ import { api, DEMO, NEEDS_SETUP } from './api.js';
 import { preloadLandmarkPngs } from './sil-render.js';
 import { cityTileUrl } from './tower.js';
 import { U, icon } from './assets.js';
-import { $, toast, errMsg } from './ui.js';
+import { $, toast, errMsg, privacyDialog } from './ui.js';
 import { startStudent } from './student.js';
 import { startTeacher } from './teacher.js';
+import { startTv } from './tv.js';
 
 const STUDENT_KEY = 'bt_student';
 const root = document.getElementById('app');
@@ -28,6 +29,7 @@ function showLogin() {
         <h2>${icon('booksIcon')} 학생 입장</h2>
         <label class="field"><span>반 코드 (6자리)</span><input class="input" name="code" maxlength="6" required style="text-transform:uppercase;letter-spacing:3px" value="${last?.code || ''}"></label>
         <label class="field"><span>내 번호</span><input class="input" name="number" type="number" inputmode="numeric" min="1" required value="${last?.number || ''}"></label>
+        <label class="field ${last?.pin ? '' : 'hidden'}" data-pinwrap><span>비밀번호 (숫자 4자리)</span><input class="input" name="pin" inputmode="numeric" maxlength="4" autocomplete="off" value="${last?.pin || ''}"></label>
         <button class="btn primary" style="width:100%">입장하기</button>
       </form>
       <form class="frame" data-f="teacher">
@@ -40,14 +42,16 @@ function showLogin() {
         <button type="button" class="btn" style="width:100%" data-google><span class="gmark">G</span> 구글로 로그인</button>
       </form>
     </div>
+    <button type="button" class="linkbtn on-sky" data-privacy>저장하는 정보 안내</button>
     <div class="city" style="background:url(${cityTileUrl()}) repeat-x bottom left/${120 * U}px ${60 * U}px"></div>
   </div>`;
 
   $('[data-f="student"]', root).onsubmit = async e => {
     e.preventDefault();
     const f = e.target;
-    await enterStudent(f.code.value.trim().toUpperCase(), Number(f.number.value), true);
+    await enterStudent(f.code.value.trim().toUpperCase(), Number(f.number.value), true, f.pin.value.trim() || undefined);
   };
+  $('[data-privacy]', root).onclick = () => privacyDialog();
   $('[data-google]', root).onclick = async () => {
     try {
       await api.signInGoogle();                 // 구글 팝업에서 계정을 고르면 돌아온다
@@ -84,18 +88,26 @@ function showLogin() {
   };
 }
 
-async function enterStudent(code, number, fromForm) {
+// 비밀번호 칸을 보여 준다 (선생님이 비밀번호를 켠 반일 때만 필요)
+function revealPin() {
+  let w = $('[data-pinwrap]', root);
+  if (!w) { showLogin(); w = $('[data-pinwrap]', root); }
+  w.classList.remove('hidden'); w.querySelector('input').focus();
+}
+
+async function enterStudent(code, number, fromForm, pin) {
   if (!/^[A-Z0-9]{6}$/.test(code) || !(number > 0)) { toast('반 코드나 번호를 다시 확인해 주세요'); return false; }
   try {
-    const data = await api.studentData(code, number);
+    const data = await api.studentData(code, number, pin);
     if (!data) {
       if (fromForm) toast('반 코드나 번호를 다시 확인해 주세요');
       return false;
     }
-    saved.set({ code, number });
-    await startStudent(root, { code, number, data, onLogout: () => { saved.clear(); showLogin(); } });
+    saved.set({ code, number, pin });
+    await startStudent(root, { code, number, pin, data, onLogout: () => { saved.clear(); showLogin(); } });
     return true;
   } catch (e) {
+    if (e.needPin) revealPin();
     toast(errMsg(e));
     return false;
   }
@@ -116,12 +128,14 @@ function showSetup() {
 async function boot() {
   if (NEEDS_SETUP) return showSetup();
   await preloadLandmarkPngs();
+  const tv = new URLSearchParams(location.search).get('tv');       // 교실 TV 화면: 로그인 없이 반 코드로
+  if (tv) return startTv(root, tv.trim().toUpperCase());
   try {
     const user = await api.user();
     if (user) return startTeacher(root, { user, onLogout: showLogin });
   } catch { /* 로그인 정보 확인 실패는 로그인 화면으로 */ }
   const last = saved.get();
-  if (last && await enterStudent(last.code, last.number, false)) return;
+  if (last && await enterStudent(last.code, last.number, false, last.pin)) return;
   showLogin();
 }
 

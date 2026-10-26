@@ -1,9 +1,9 @@
 // 학생 화면 (명세서 2.2)
 import { api } from './api.js';
-import { heightM, leader, newlyReached, seenKey, validateBook, sortBooks, needsPageConfirm } from './core.js';
+import { heightM, leader, newlyReached, seenKey, validateBook, sortBooks, needsPageConfirm, goalCheck } from './core.js';
 import { createTower } from './tower.js';
 import { icon } from './assets.js';
-import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, breakthroughPopup, showBookNote } from './ui.js';
+import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, breakthroughPopup, showBookNote, editBookModal, goalPopup } from './ui.js';
 
 const REFRESH_MS = 30000;
 const store = {
@@ -11,8 +11,8 @@ const store = {
   set(k, v) { try { localStorage.setItem(k, String(v)); } catch { /* 저장 불가 환경은 무시 */ } },
 };
 
-export async function startStudent(root, { code, number, data, onLogout }) {
-  let mode = 'class', timer = 0, busy = false;
+export async function startStudent(root, { code, number, pin, data, onLogout }) {
+  let mode = 'class', timer = 0, busy = false, goalState = { reached: false, goal: 0 };
 
   root.innerHTML = `
   <div class="app">
@@ -111,10 +111,17 @@ export async function startStudent(root, { code, number, data, onLogout }) {
     for (const b of sortBooks(mine).reverse()) {
       const li = h(`<li title="${esc(b.title)}${b.note ? ' — ' + esc(b.note) : ''}"><div class="grow" style="flex:1;min-width:0">
         <div class="t1"><b>${esc(b.title)}</b><span class="small muted">${fmtN(b.pages)}쪽 · ${fmtDate(b.created_at)}</span></div>
-        <div class="note">${b.note ? esc(b.note) : '&nbsp;'}</div></div><button class="btn small">삭제</button></li>`);
+        <div class="note">${b.note ? esc(b.note) : '&nbsp;'}</div></div>
+        <div class="rowbtns"><button class="btn small" data-edit>고치기</button><button class="btn small" data-del>삭제</button></div></li>`);
       li.style.cursor = 'pointer';
       li.onclick = e => { if (!e.target.closest('button')) showBookNote({ title: b.title, pages: b.pages, who: '나', date: b.created_at, note: b.note }); };
-      li.querySelector('button').onclick = async () => {
+      li.querySelector('[data-edit]').onclick = async () => {
+        const v = await editBookModal(b);
+        if (!v) return;
+        if (needsPageConfirm(v.pages) && v.pages !== b.pages && !await confirmBox(`「${v.title}」 ${fmtN(v.pages)}쪽이 맞나요?\n쪽수를 잘못 쓰면 탑이 엄청 높아져요.`, '맞아요', { cancel: '다시 쓸게요', tone: 'primary' })) return;
+        try { await api.updateBook(code, number, b.id, v); toast('고쳤어요'); await reload(); } catch (err) { toast(errMsg(err)); }
+      };
+      li.querySelector('[data-del]').onclick = async () => {
         if (!await confirmBox(`「${b.title}」 기록을 삭제할까요?`)) return;
         try { await api.deleteMyBook(code, number, b.id); toast('삭제했어요'); await reload(); } catch (err) { toast(errMsg(err)); }
       };
@@ -124,28 +131,33 @@ export async function startStudent(root, { code, number, data, onLogout }) {
     // 도감 (현재 탭 기준)
     X('dexlabel').textContent = mode === 'class' ? '우리 반 탑 기준' : '내 탑 기준';
     if (L) renderDex(X('dex'), L.reachedCount);
+    goalState = { reached: goal > 0 && cM >= goal, goal };
     checkBreakthrough();
   }
 
   // 돌파 연출 (명세 4.5)
+  // 랜드마크 돌파와 반 목표 달성 연출 (첫 방문·기록 삭제 때는 조용히 저장만)
   async function checkBreakthrough() {
     const L = tower.layout;
     if (!L || busy) return;
     const key = seenKey(code, number, mode);
     const seen = store.get(key), reached = L.reachedCount;
-    if (seen == null || reached < seen) { store.set(key, reached); return; }
-    const list = newlyReached(seen, reached);
-    if (!list.length) return;
-    store.set(key, reached);
+    let list = [];
+    if (seen == null || reached < seen) store.set(key, reached);
+    else { list = newlyReached(seen, reached); if (list.length) store.set(key, reached); }
+    const gkey = `bt_goal_${code}_${number}`;
+    const g = goalCheck(store.get(gkey), goalState.reached);
+    store.set(gkey, g.store);
+    if (!list.length && !g.popup) return;
     busy = true;
     try {
-      await tower.flash(list[0]);
-      for (const lm of list) await breakthroughPopup(lm);
+      if (list.length) { await tower.flash(list[0]); for (const lm of list) await breakthroughPopup(lm); }
+      if (g.popup) await goalPopup(goalState.goal);
     } finally { busy = false; }
   }
 
   async function reload() {
-    const d = await api.studentData(code, number);
+    const d = await api.studentData(code, number, pin);
     if (!d) { toast('반 코드나 번호를 다시 확인해 주세요'); clearInterval(timer); onLogout(); return; }
     data = d;
     render();

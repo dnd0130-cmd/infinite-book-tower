@@ -200,6 +200,53 @@ export const genCode = (rand = Math.random) =>
 // 책 표지색: (학생 번호 − 1) % 팔레트 길이
 export const coverIndex = (number, paletteLen = 8) => (((number - 1) % paletteLen) + paletteLen) % paletteLen;
 
+/**
+ * CSV 만들기 (엑셀에서 한글이 안 깨지도록 맨 앞에 BOM, 줄바꿈은 CRLF).
+ * 셀이 = + - @ 로 시작하면 엑셀이 수식으로 읽지 않도록 앞에 ' 를 붙인다.
+ */
+export function toCsv(rows) {
+  const cell = v => {
+    let s = v == null ? '' : String(v);
+    if (/^[=+\-@\t\r]/.test(s)) s = "'" + s;
+    return /[",\r\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s;
+  };
+  return '\uFEFF' + rows.map(r => r.map(cell).join(',')).join('\r\n') + '\r\n';
+}
+
+/**
+ * 반 목표 달성 축하 판정. prev = 이전에 저장한 값(없으면 null, 0=아직, 1=달성), reached = 지금 달성했는가.
+ * 첫 방문(prev=null)이거나 이미 달성한 뒤에는 팝업을 띄우지 않고, '아직 → 달성'으로 바뀔 때만 띄운다.
+ * 반환: { popup, store } (store는 새로 저장할 값)
+ */
+export function goalCheck(prev, reached) {
+  const store = reached ? 1 : 0;
+  return { popup: prev === 0 && reached, store };
+}
+
+// 학생 비밀번호(4자리). 원문은 저장하지 않고 SHA-256 해시만 저장한다 (반 코드·번호를 섞어 같은 숫자도 다른 값이 되게).
+// 같은 반 친구가 번호만 알고 들어오는 장난을 막는 용도이며, 강한 보안은 아니다.
+export const validPin = s => /^\d{4}$/.test(String(s ?? ''));
+export async function pinHash(code, number, pin) {
+  const data = new TextEncoder().encode(`bt:${String(code).trim().toUpperCase()}:${Number(number)}:${pin}`);
+  const buf = await crypto.subtle.digest('SHA-256', data);
+  return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
+}
+// 학생 입장 때 비밀번호 확인. 반이 비밀번호를 쓰지 않으면 통과. needPin 표시가 붙은 오류를 던진다
+export async function checkStudentPin(cls, me, code, number, pin) {
+  if (!cls?.pinRequired) return;
+  const err = m => Object.assign(new Error(m), { needPin: true });
+  if (!me.pinHash) throw err('아직 비밀번호가 없어요. 선생님께 받아 오세요');
+  if (!validPin(pin)) throw err('선생님께 받은 비밀번호(숫자 4자리)를 적어 주세요');
+  if (await pinHash(code, number, pin) !== me.pinHash) throw err('비밀번호가 맞지 않아요');
+}
+export const randomPin = (rand = n => crypto.getRandomValues(new Uint32Array(1))[0] % n) => String(rand(10000)).padStart(4, '0');
+
+// 받침에 맞는 조사: josa('박서연', '이', '가') → '이', josa('하루', '이', '가') → '가'. 한글이 아니면 받침 없는 쪽을 쓴다
+export function josa(word, withBatchim, without) {
+  const c = String(word ?? '').trim().slice(-1).charCodeAt(0);
+  return c >= 0xAC00 && c <= 0xD7A3 && (c - 0xAC00) % 28 !== 0 ? withBatchim : without;
+}
+
 // 이 쪽수 이상이면 쌓기 전에 "정말 맞나요?" 하고 한 번 되묻는다 (10쪽을 1000쪽으로 쓰는 실수 방지)
 export const CONFIRM_PAGES = 500;
 export const needsPageConfirm = pages => pages >= CONFIRM_PAGES;

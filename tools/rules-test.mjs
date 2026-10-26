@@ -89,10 +89,39 @@ test('책 쌓기: 반에 있는 번호, 쪽수 1~3000, 한 줄 느낌 필수', a
   await assertFails(addDoc(books(anon()), bookDoc({ extra: 1 })));
 });
 
-test('책은 고칠 수 없고, 지울 수는 있다', async () => {
-  await assertFails(updateDoc(doc(anon(), 'classes', CODE, 'books', 'b1'), { pages: 3000 }));
-  await assertFails(updateDoc(doc(teacher(T1), 'classes', CODE, 'books', 'b1'), { pages: 3000 }));
-  await assertSucceeds(deleteDoc(doc(anon(), 'classes', CODE, 'books', 'b1')));
+test('책 고치기: 제목·쪽수·느낌만, 쌓을 때와 같은 검사', async () => {
+  const bk = () => doc(anon(), 'classes', CODE, 'books', 'b1');
+  await assertSucceeds(updateDoc(bk(), { pages: 250 }));
+  await assertSucceeds(updateDoc(bk(), { title: '새 제목', note: '새 느낌', pages: 3000 }));
+  await assertFails(updateDoc(bk(), { pages: 0 }));
+  await assertFails(updateDoc(bk(), { pages: 3001 }));
+  await assertFails(updateDoc(bk(), { pages: 10.5 }));
+  await assertFails(updateDoc(bk(), { note: '  ' }));                                  // 느낌은 계속 필수
+  await assertFails(updateDoc(bk(), { title: '' }));
+  await assertFails(updateDoc(bk(), { student_number: 2 }));                           // 쓴 사람 바꾸기 금지
+  await assertFails(updateDoc(bk(), { created_at: new Date('2020-01-01') }));          // 시각 바꾸기 금지
+  await assertFails(updateDoc(bk(), { extra: 1 }));
+  await assertSucceeds(deleteDoc(bk()));                                               // 지우기는 그대로 가능
+});
+
+test('학생 비밀번호(pinHash)와 반 설정: 선생님만, 형식 검사', async () => {
+  const st = db => doc(db, 'classes', CODE, 'students', '1');
+  const h64 = 'a'.repeat(64);
+  await assertSucceeds(updateDoc(st(teacher(T1)), { pinHash: h64 }));
+  await assertFails(updateDoc(st(teacher(T1)), { pinHash: '1234' }));                  // 원문 4자리를 그대로 저장 금지
+  await assertFails(updateDoc(st(anon()), { pinHash: h64 }));
+  await assertFails(updateDoc(st(teacher(T2)), { pinHash: h64 }));
+  await assertSucceeds(updateDoc(doc(teacher(T1), 'classes', CODE), { pinRequired: true }));
+  await assertFails(updateDoc(doc(teacher(T1), 'classes', CODE), { pinRequired: 'yes' }));
+  await assertFails(updateDoc(doc(anon(), 'classes', CODE), { pinRequired: false }));
+});
+
+test('반 비우기·삭제: 주인 선생님만 (책·학생까지)', async () => {
+  await assertFails(deleteDoc(doc(teacher(T2), 'classes', CODE, 'students', '1')));
+  await assertSucceeds(deleteDoc(doc(anon(), 'classes', CODE, 'books', 'b1')));        // 책 비우기
+  await assertSucceeds(deleteDoc(doc(teacher(T1), 'classes', CODE, 'students', '1')));
+  await assertFails(deleteDoc(doc(teacher(T2), 'classes', CODE)));
+  await assertSucceeds(deleteDoc(doc(teacher(T1), 'classes', CODE)));
 });
 
 test('다른 컬렉션은 모두 막혀 있다', async () => {

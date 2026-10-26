@@ -2,7 +2,7 @@
 //  - 연습 모드(?demo): 브라우저 안의 가짜 데이터 (DB 없음)
 //  - 그 외: Firebase (js/api-firebase.js, 설정은 js/firebase-config.js)
 // 주소에 ?emulator를 붙이면 내 컴퓨터의 Firebase 에뮬레이터에 연결한다 (시험용).
-import { genCode } from './core.js';
+import { genCode, checkStudentPin } from './core.js';
 import { isFirebaseConfigured } from './firebase-config.js';
 
 export const DEMO = window.__BT_DEMO__ === true || new URLSearchParams(location.search).has('demo');
@@ -36,14 +36,35 @@ function demoApi() {
   };
   const wait = v => new Promise(r => setTimeout(() => r(structuredClone(v)), 80));
   return {
-    async studentData(code, number) {
+    async studentData(code, number, pin) {
       const f = find(code, number); if (!f) return wait(null);
       if (f.s.left) throw new Error('이 번호는 지금 쓸 수 없어요. 선생님께 물어보세요');
+      await checkStudentPin(f.c, f.s, f.c.code, number, pin);
       return wait({
         cls: f.c, me: f.s,
-        students: students.filter(s => s.class_id === f.c.id).map(({ id, number, name, left }) => ({ id, number, name, left: !!left })),
+        students: students.filter(s => s.class_id === f.c.id).map(({ id, number, name, left, pinHash }) => ({ id, number, name, left: !!left, pinHash: pinHash || null })),
         books: books.filter(b => b.class_id === f.c.id),
       });
+    },
+    // 반 하나를 지켜본다 (교실 TV): 1.5초마다 지금 상태를 알려 준다
+    async subscribeClass(code, cb) {
+      const c = classes.find(c => c.code === String(code).trim().toUpperCase());
+      const snap = () => c ? { cls: structuredClone(c), students: structuredClone(students.filter(s => s.class_id === c.id)), books: structuredClone(books.filter(b => b.class_id === c.id)) } : { cls: null, students: [], books: [] };
+      cb(snap()); const t = setInterval(() => cb(snap()), 1500);
+      return () => clearInterval(t);
+    },
+    async updateBook(code, number, id, v) {
+      const f = find(code, number); const b = books.find(x => x.id === id);
+      if (!b) throw new Error('이미 지워진 책이에요');
+      if (!f || b.student_id !== f.s.id) throw new Error('내가 쌓은 책만 고칠 수 있어요');
+      Object.assign(b, { title: v.title, pages: v.pages, note: v.note }); return wait(null);
+    },
+    async setPins(_classId, items) { items.forEach(it => { students.find(s => s.id === it.id).pinHash = it.hash; }); return wait(null); },
+    async clearBooks(classId) { for (let i = books.length - 1; i >= 0; i--) if (books[i].class_id === classId) books.splice(i, 1); return wait(null); },
+    async deleteClass(classId) {
+      for (let i = books.length - 1; i >= 0; i--) if (books[i].class_id === classId) books.splice(i, 1);
+      for (let i = students.length - 1; i >= 0; i--) if (students[i].class_id === classId) students.splice(i, 1);
+      const k = classes.findIndex(c => c.id === classId); if (k >= 0) classes.splice(k, 1); return wait(null);
     },
     async addBook(code, number, b) {
       const f = find(code, number); if (!f) throw new Error('학생 정보를 찾을 수 없어요');
