@@ -214,10 +214,11 @@ export async function startTeacher(root, { user, onLogout }) {
     const nWarn = books.filter(suspicious).length;
     P('check').innerHTML = `
       <div class="frame" style="margin-bottom:12px"><div class="row" style="margin-bottom:8px"><h2 class="grow" style="margin:0">학생별 현황</h2><button class="btn small" data-x="csv1">CSV 받기</button></div><div class="scroll-x"><table class="grid">
-        <tr><th>${numHead()}</th><th>이름</th><th>책 수</th><th>쪽수 합</th><th>높이</th><th>마지막 입력</th></tr>
+        <tr><th>${numHead()}</th><th>이름</th><th>책 수</th><th>쪽수 합</th><th>높이</th><th>마지막 입력</th><th></th></tr>
         ${rows.map(r => `<tr><td class="num">${r.s.number}</td><td>${esc(r.s.name)}${r.s.left ? ' <span class="muted">(전학)</span>' : ''}</td><td class="num">${r.count}</td><td class="num">${fmtN(r.pages)}</td>
-          <td class="num">${fmtM(heightM(r.pages, cm))}</td><td>${r.last ? fmtDate(r.last) : '<span class="warn">미입력</span>'}</td></tr>`).join('')}
-        ${rows.length ? '' : '<tr><td colspan="6" class="muted">학생 탭에서 학생을 등록해 주세요</td></tr>'}
+          <td class="num">${fmtM(heightM(r.pages, cm))}</td><td>${r.last ? fmtDate(r.last) : '<span class="warn">미입력</span>'}</td>
+          <td><button class="btn small" data-view="${r.s.id}">기록 보기</button></td></tr>`).join('')}
+        ${rows.length ? '' : '<tr><td colspan="7" class="muted">학생 탭에서 학생을 등록해 주세요</td></tr>'}
       </table></div></div>
       <div class="frame"><div class="row" style="margin-bottom:8px;flex-wrap:wrap"><h2 class="grow" style="margin:0">전체 기록 ${nWarn ? `<span class="warn small">⚠️ 확인 필요 ${nWarn}건</span>` : ''}</h2>
         <button class="btn small" data-x="csv2">CSV 받기</button>
@@ -231,6 +232,9 @@ export async function startTeacher(root, { user, onLogout }) {
         ${list.length ? '' : '<tr><td colspan="6" class="muted">기록이 없어요</td></tr>'}
         </table></div></div>`;
     X('filter').onchange = e => { filter = e.target.value; renderCheck(); };
+    P('check').querySelectorAll('[data-view]').forEach(btn => btn.onclick = () => {
+      filter = btn.dataset.view; renderCheck(); X('filter').scrollIntoView({ behavior: 'smooth', block: 'start' });   // 그 학생의 기록만 모아서 보고, 잘못된 것은 삭제
+    });
     const ymd = iso => new Date(iso).toLocaleDateString('sv-SE');
     const fname = kind => `${cls.name.replace(/[\\/:*?"<>|]/g, '_')}_${kind}.csv`;
     X('csv1').onclick = () => {

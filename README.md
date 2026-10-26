@@ -118,3 +118,5 @@ npm test        # 계산 로직
 ## 그림 출처
 
 - 글꼴: [갈무리](https://github.com/quiple/galmuri), SIL OFL 1.1
+- 그림(UI·배경·책·랜드마크 도트): `tools/make-assets.mjs`와 `js/landmarks.js`에서 직접 만든 것이며 외부 그림 파일은 쓰지 않았다.
+- QR 코드: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) (Kazuhiko Arase), MIT — `js/vendor/qrcode.js`
