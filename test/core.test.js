@@ -206,28 +206,6 @@ test('목표 달성 축하: 아직→달성일 때만 팝업', () => {
   assert.deepEqual(C.goalCheck(1, false), { popup: false, store: 0 });     // 책 삭제·목표 상향 → 다시 달성하면 또 축하
 });
 
-test('학생 비밀번호: 4자리 검사, 해시는 반·번호에 따라 다름', async () => {
-  assert.equal(C.validPin('0042'), true); assert.equal(C.validPin('123'), false); assert.equal(C.validPin('12a4'), false); assert.equal(C.validPin(1234), true);
-  const a = await C.pinHash('abc234', 1, '1234');
-  assert.match(a, /^[0-9a-f]{64}$/);
-  assert.equal(a, await C.pinHash(' ABC234 ', '1', '1234'));          // 코드 대소문자·공백, 숫자/문자열 번호는 같은 값
-  assert.notEqual(a, await C.pinHash('ABC234', 2, '1234'));           // 번호가 다르면 다른 값
-  assert.notEqual(a, await C.pinHash('XYZ234', 1, '1234'));
-  assert.notEqual(a, await C.pinHash('ABC234', 1, '1235'));
-  assert.equal(C.randomPin(() => 7), '0007'); assert.equal(C.randomPin(() => 9999), '9999');
-  for (let i = 0; i < 200; i++) assert.match(C.randomPin(), /^\d{4}$/);
-});
-
-test('학생 입장 비밀번호 확인', async () => {
-  const hash = await C.pinHash('ABC234', 3, '4821');
-  const me = { number: 3, pinHash: hash };
-  await C.checkStudentPin({ pinRequired: false }, me, 'ABC234', 3, undefined);                    // 쓰지 않는 반은 통과
-  await C.checkStudentPin({ pinRequired: true }, me, 'ABC234', 3, '4821');                         // 맞음
-  await assert.rejects(() => C.checkStudentPin({ pinRequired: true }, me, 'ABC234', 3, '1111'), e => e.needPin && /맞지 않아요/.test(e.message));
-  await assert.rejects(() => C.checkStudentPin({ pinRequired: true }, me, 'ABC234', 3, ''), e => e.needPin && /4자리/.test(e.message));
-  await assert.rejects(() => C.checkStudentPin({ pinRequired: true }, { number: 3 }, 'ABC234', 3, '4821'), e => e.needPin && /아직 비밀번호가 없어요/.test(e.message));
-});
-
 test('조사: 받침에 따라 이/가', () => {
   assert.equal(C.josa('박서연', '이', '가'), '이');   // 연: 받침 ㄴ
   assert.equal(C.josa('김하늘', '이', '가'), '이');   // 늘: 받침 ㄹ

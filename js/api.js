@@ -2,7 +2,7 @@
 //  - 연습 모드(?demo): 브라우저 안의 가짜 데이터 (DB 없음)
 //  - 그 외: Firebase (js/api-firebase.js, 설정은 js/firebase-config.js)
 // 주소에 ?emulator를 붙이면 내 컴퓨터의 Firebase 에뮬레이터에 연결한다 (시험용).
-import { genCode, checkStudentPin, resolveNumber, normalizeCode, validateClassCode } from './core.js';
+import { genCode, resolveNumber, normalizeCode, validateClassCode } from './core.js';
 import { isFirebaseConfigured } from './firebase-config.js';
 
 export const DEMO = window.__BT_DEMO__ === true || new URLSearchParams(location.search).has('demo');
@@ -36,13 +36,12 @@ function demoApi() {
   };
   const wait = v => new Promise(r => setTimeout(() => r(structuredClone(v)), 80));
   return {
-    async studentData(code, number, pin) {
+    async studentData(code, number) {
       const f = find(code, number); if (!f) return wait(null);
       if (f.s.left) throw new Error('이 번호는 지금 쓸 수 없어요. 선생님께 물어보세요');
-      await checkStudentPin(f.c, f.s, f.c.code, number, pin);
       return wait({
         cls: f.c, me: f.s,
-        students: students.filter(s => s.class_id === f.c.id).map(({ id, number, name, left, pinHash }) => ({ id, number, name, left: !!left, pinHash: pinHash || null })),
+        students: students.filter(s => s.class_id === f.c.id).map(({ id, number, name, left }) => ({ id, number, name, left: !!left })),
         books: books.filter(b => b.class_id === f.c.id),
       });
     },
@@ -59,7 +58,6 @@ function demoApi() {
       if (!f || b.student_id !== f.s.id) throw new Error('내가 쌓은 책만 고칠 수 있어요');
       Object.assign(b, { title: v.title, pages: v.pages, note: v.note }); return wait(null);
     },
-    async setPins(_classId, items) { items.forEach(it => { students.find(s => s.id === it.id).pinHash = it.hash; }); return wait(null); },
     async clearBooks(classId) { for (let i = books.length - 1; i >= 0; i--) if (books[i].class_id === classId) books.splice(i, 1); return wait(null); },
     async deleteClass(classId) {
       for (let i = books.length - 1; i >= 0; i--) if (books[i].class_id === classId) books.splice(i, 1);
@@ -89,7 +87,7 @@ function demoApi() {
         if (err) throw new Error(err);
         if (classes.some(c => c.code === c2)) throw new Error('이미 사용 중인 코드예요. 다른 코드를 정해 주세요');
       }
-      const c = { id: 'c' + uid(), name, code: c2, goal_m: 500, cm_per_page: 1, pinRequired: false, grade: grade && room ? Number(grade) : null, room: grade && room ? Number(room) : null, created_at: new Date().toISOString() };
+      const c = { id: 'c' + uid(), name, code: c2, goal_m: 500, cm_per_page: 1, grade: grade && room ? Number(grade) : null, room: grade && room ? Number(room) : null, created_at: new Date().toISOString() };
       classes.push(c); return wait(c);
     },
     async isCodeFree(code) { return wait(!classes.some(c => c.code === normalizeCode(code))); },
