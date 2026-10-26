@@ -27,8 +27,9 @@ function showLogin() {
     <div class="cards">
       <form class="frame" data-f="student" autocomplete="off">
         <h2>${icon('booksIcon')} 학생 입장</h2>
-        <label class="field"><span>반 코드 (6자리)</span><input class="input" name="code" maxlength="6" required style="text-transform:uppercase;letter-spacing:3px" value="${last?.code || ''}"></label>
-        <label class="field"><span>내 번호</span><input class="input" name="number" type="number" inputmode="numeric" min="1" required value="${last?.number || ''}"></label>
+        <label class="field"><span>반 코드</span><input class="input" name="code" maxlength="12" required autocapitalize="characters" spellcheck="false" style="text-transform:uppercase;letter-spacing:3px" value="${last?.code || ''}"></label>
+        <label class="field"><span>내 학번 (번호)</span><input class="input" name="number" type="number" inputmode="numeric" min="1" max="99999" required value="${last?.number || ''}" placeholder="예: 4201"></label>
+        <p class="small muted" style="margin:-4px 0 8px">4학년 2반 1번이면 <b>4201</b> (학번이 없는 반은 번호)</p>
         <label class="field ${last?.pin ? '' : 'hidden'}" data-pinwrap><span>비밀번호 (숫자 4자리)</span><input class="input" name="pin" inputmode="numeric" maxlength="4" autocomplete="off" value="${last?.pin || ''}"></label>
         <button class="btn primary" style="width:100%">입장하기</button>
       </form>
@@ -96,15 +97,16 @@ function revealPin() {
 }
 
 async function enterStudent(code, number, fromForm, pin) {
-  if (!/^[A-Z0-9]{6}$/.test(code) || !(number > 0)) { toast('반 코드나 번호를 다시 확인해 주세요'); return false; }
+  if (!/^[A-Z0-9]{6,12}$/.test(code) || !(number > 0)) { toast('반 코드나 학번(번호)을 다시 확인해 주세요'); return false; }
   try {
     const data = await api.studentData(code, number, pin);
     if (!data) {
-      if (fromForm) toast('반 코드나 번호를 다시 확인해 주세요');
+      if (fromForm) toast('반 코드나 학번(번호)을 다시 확인해 주세요');
       return false;
     }
-    saved.set({ code, number, pin });
-    await startStudent(root, { code, number, pin, data, onLogout: () => { saved.clear(); showLogin(); } });
+    const num = data.me.number;            // 출석번호만 쳐도 이 반의 학번으로 바뀌어 있다
+    saved.set({ code, number: num, pin });
+    await startStudent(root, { code, number: num, pin, data, onLogout: () => { saved.clear(); showLogin(); } });
     return true;
   } catch (e) {
     if (e.needPin) revealPin();

@@ -1,6 +1,6 @@
 // 학생 화면 (명세서 2.2)
 import { api } from './api.js';
-import { heightM, leader, newlyReached, seenKey, validateBook, sortBooks, needsPageConfirm, goalCheck } from './core.js';
+import { heightM, leader, newlyReached, seenKey, validateBook, sortBooks, needsPageConfirm, goalCheck, numberLabel } from './core.js';
 import { createTower } from './tower.js';
 import { icon } from './assets.js';
 import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, breakthroughPopup, showBookNote, editBookModal, goalPopup } from './ui.js';
@@ -78,12 +78,12 @@ export async function startStudent(root, { code, number, pin, data, onLogout }) 
     const numberOf = new Map(students.map(s => [s.id, s.number]));
     const mine = data.books.filter(b => b.student_id === me.id);
     const books = mode === 'class' ? data.books : mine;
-    X('who').textContent = `${cls.name} · ${me.number}번 ${me.name}`;
+    X('who').textContent = `${cls.name} · ${numberLabel(me.number, cls)} ${me.name}`;
 
     tower.update({
       books, cmPerPage: cm, goalM: goal, mode,
       numberOf: id => numberOf.get(id),
-      nameOf: id => id === me.id ? '나' : `${numberOf.get(id) ?? '?'}번 ${students.find(s => s.id === id)?.name ?? ''}`.trim(),
+      nameOf: id => id === me.id ? '나' : `${numberLabel(numberOf.get(id) ?? 0, cls)} ${students.find(s => s.id === id)?.name ?? ''}`.trim(),
       leader: leader(students, data.books),
     }, { reset });
     const L = tower.layout;

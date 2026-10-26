@@ -13,7 +13,7 @@ import {
   query, where, orderBy, writeBatch, onSnapshot, serverTimestamp,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { FIREBASE_CONFIG } from './firebase-config.js';
-import { genCode, checkStudentPin } from './core.js';
+import { genCode, checkStudentPin, resolveNumber, normalizeCode, validateClassCode } from './core.js';
 
 const KO = {
   'auth/invalid-credential': '이메일이나 비밀번호가 맞지 않아요',
@@ -54,7 +54,7 @@ export function createApi() {
   }
 
   const iso = ts => (ts?.toDate ? ts.toDate() : ts ? new Date(ts) : new Date()).toISOString();
-  const mapClass = d => { const x = d.data(); return { id: d.id, code: d.id, name: x.name, goal_m: x.goal_m, cm_per_page: x.cm_per_page, pinRequired: x.pinRequired === true, created_at: iso(x.created_at) }; };
+  const mapClass = d => { const x = d.data(); return { id: d.id, code: d.id, name: x.name, goal_m: x.goal_m, cm_per_page: x.cm_per_page, pinRequired: x.pinRequired === true, grade: x.grade ?? null, room: x.room ?? null, created_at: iso(x.created_at) }; };
   const mapStudent = d => { const x = d.data(); return { id: d.id, number: x.number, name: x.name, left: x.left === true, pinHash: x.pinHash || null }; };
   const mapBook = d => { const x = d.data({ serverTimestamps: 'estimate' }); return { id: d.id, student_id: String(x.student_number), title: x.title, pages: x.pages, note: x.note ?? '', created_at: iso(x.created_at) }; };
   const sub = (code, name) => collection(db, 'classes', code, name);
@@ -96,10 +96,11 @@ export function createApi() {
     studentData: wrap(async (code, number, pin) => {
       code = normCode(code);
       const st = await watch(code);
-      const me = st.students.find(s => s.number === Number(number));
-      if (!st.cls || !me) return null;
+      if (!st.cls) return null;
+      const me = st.students.find(s => s.number === resolveNumber(number, st.cls));   // 학번 방식 반이면 출석번호(1~99)만 써도 찾아 준다
+      if (!me) return null;
       if (me.left) throw new Error('이 번호는 지금 쓸 수 없어요. 선생님께 물어보세요');
-      await checkStudentPin(st.cls, me, code, number, pin);
+      await checkStudentPin(st.cls, me, code, me.number, pin);
       return { cls: st.cls, me, students: st.students, books: st.books };
     }),
     // 반 하나를 실시간으로 지켜본다 (교실 TV). cb({ cls, students, books })를 지금 한 번, 바뀔 때마다 부른다. 해제 함수를 돌려준다
@@ -144,15 +145,27 @@ export function createApi() {
       const s = await getDocs(query(collection(db, 'classes'), where('teacherUid', '==', uid)));
       return s.docs.map(mapClass).sort((a, b) => a.created_at.localeCompare(b.created_at));
     }),
-    createClass: wrap(async name => {
+    // 반 만들기. code가 있으면 선생님이 정한 코드(검사·중복 확인), 없으면 무작위. grade·room을 함께 주면 학번 방식 반
+    createClass: wrap(async (name, { code: want, grade, room } = {}) => {
+      const hak = grade && room ? { grade: Number(grade), room: Number(room) } : {};
+      const make = async c => {
+        await setDoc(doc(db, 'classes', c), { code: c, name, goal_m: 500, cm_per_page: 1, teacherUid: auth.currentUser.uid, created_at: serverTimestamp(), ...hak });
+        return { id: c, code: c, name, goal_m: 500, cm_per_page: 1, pinRequired: false, grade: hak.grade ?? null, room: hak.room ?? null, created_at: new Date().toISOString() };
+      };
+      if (want) {
+        const c = normalizeCode(want), err = validateClassCode(c);
+        if (err) throw new Error(err);
+        if ((await getDoc(doc(db, 'classes', c))).exists()) throw new Error('이미 사용 중인 코드예요. 다른 코드를 정해 주세요');
+        return make(c);
+      }
       for (let i = 0; i < 6; i++) {
-        const code = genCode();
-        if ((await getDoc(doc(db, 'classes', code))).exists()) continue;       // 이미 쓰는 코드면 다시
-        await setDoc(doc(db, 'classes', code), { code, name, goal_m: 500, cm_per_page: 1, teacherUid: auth.currentUser.uid, created_at: serverTimestamp() });
-        return { id: code, code, name, goal_m: 500, cm_per_page: 1, created_at: new Date().toISOString() };
+        const c = genCode();
+        if (!(await getDoc(doc(db, 'classes', c))).exists()) return make(c);      // 이미 쓰는 코드면 다시
       }
       throw new Error('반 코드를 만들지 못했어요. 다시 시도해 주세요');
     }),
+    // 코드가 비어 있는지 (이미 있는 반이면 false). 반 문서는 코드를 아는 사람이 읽을 수 있으므로 누구나 확인할 수 있다
+    isCodeFree: wrap(async code => !(await getDoc(doc(db, 'classes', normalizeCode(code)))).exists()),
     updateClass: wrap(async (id, patch) => { await updateDoc(doc(db, 'classes', id), patch); }),
     listStudents: wrap(async classId => (await getDocs(sub(classId, 'students'))).docs.map(mapStudent).sort((a, b) => a.number - b.number)),
     // entries: [{ number, name }] — 번호는 화면에서 정해 보낸다. 그 사이 같은 번호가 생겼으면 덮어쓰지 않고 멈춘다

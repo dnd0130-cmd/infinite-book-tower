@@ -161,35 +161,75 @@ export function leader(students, books) {
 // 이상 기록 판별 (교사 점검 화면)
 export const suspicious = b => b.pages >= 800 || b.title.trim().length < 2 || /^(.)\1+$/u.test(b.title.trim());
 
+// ── 학번 ──
+// 반에 학년·반이 정해져 있으면 학생 번호는 학번이다: 학년 + 반 + 두 자리 번호 (4학년 2반 1번 → 4201, 6학년 12반 3번 → 61203).
+export const usesHakbun = cls => !!(cls && cls.grade && cls.room);
+export const hakbun = (grade, room, seat) => Number(`${grade}${room}${String(seat).padStart(2, '0')}`);
+export const hakbunBase = cls => usesHakbun(cls) ? hakbun(cls.grade, cls.room, 0) : 0;
+// 학번에서 출석번호(1~99)만 뽑는다. 학번 방식이 아니거나 이 반 학번이 아니면 그대로
+export function seatOf(number, cls) {
+  const base = hakbunBase(cls);
+  return base && number > base && number <= base + 99 ? number - base : number;
+}
+export const numberLabel = (number, cls) => `${seatOf(number, cls)}번`;
+// 학생이 입력한 값 → 이 반의 학번. 학번 방식 반에서 1~99를 쓰면 출석번호로 보고 학번으로 바꿔 준다 (둘 다 허용)
+export function resolveNumber(input, cls) {
+  const n = Number(input), base = hakbunBase(cls);
+  return base && n >= 1 && n <= 99 ? base + n : n;
+}
+
 /**
  * 학생 일괄 등록 글 해석. 한 줄에 한 명: "이름" 또는 "번호 이름" (예: "3 박서연", "3. 박서연").
+ *  - base가 0이면 번호 그대로 (1~99999). base가 있으면(학번 방식, hakbunBase(cls)) 쓴 번호가 1~99면 출석번호로 보고
+ *    base를 더하고, base 범위의 학번(예: 4203)이면 그대로 쓴다.
  *  - 번호가 없는 줄은 '이미 있는 번호 중 가장 큰 것'+1부터 차례로 붙인다. 이번에 직접 쓴 번호는 건너뛴다.
  *    이미 있는 번호들 사이의 빈 번호는 메우지 않는다 (전학 간 학생의 번호를 새 학생이 물려받지 않게).
- *  - 이미 있는 번호, 같은 번호 중복, 1~9999 밖의 번호는 오류.
+ *  - 이미 있는 번호, 같은 번호 중복, 범위 밖의 번호는 오류.
  * 반환: { entries: [{ number, name }] } 또는 { error }
  */
-export function parseStudentLines(text, existingNumbers = []) {
+export function parseStudentLines(text, existingNumbers = [], base = 0) {
   const taken = new Set(existingNumbers);
   const rows = [];
   for (const raw of String(text ?? '').split('\n')) {
     const line = raw.trim();
     if (!line) continue;
-    const m = line.match(/^(\d{1,5})(?:\s*[.)\]:,-]\s*|\s+)(\S.*)$/u);
+    const m = line.match(/^(\d{1,6})(?:\s*[.)\]:,-]\s*|\s+)(\S.*)$/u);
     rows.push(m ? { number: Number(m[1]), name: m[2].trim().slice(0, 30) } : { number: null, name: line.slice(0, 30) });
   }
   if (!rows.length) return { error: '이름을 한 줄에 한 명씩 적어 주세요' };
+  const max = base ? base + 99 : 99999;
   const used = new Set();
   for (const r of rows) {
     if (r.number == null) continue;
-    if (r.number < 1 || r.number > 9999) return { error: `번호는 1~9999 사이로 적어 주세요 (${r.number})` };
+    if (base && r.number >= 1 && r.number <= 99) r.number += base;                       // 출석번호 → 학번
+    if (r.number < (base ? base + 1 : 1) || r.number > max) {
+      return { error: base ? `${r.number}은(는) 이 반의 번호가 아니에요 (번호 1~99 또는 ${base + 1}~${base + 99})` : `번호는 1~99999 사이로 적어 주세요 (${r.number})` };
+    }
     if (taken.has(r.number)) return { error: `${r.number}번은 이미 있어요 (${r.name})` };
     if (used.has(r.number)) return { error: `${r.number}번이 두 번 적혀 있어요` };
     used.add(r.number);
   }
-  let next = Math.max(0, ...taken) + 1;
-  for (const r of rows) if (r.number == null) { while (used.has(next)) next++; r.number = next++; }
-  if (rows.some(r => r.number > 9999)) return { error: '번호가 9999를 넘어요' };
+  let next = Math.max(base, ...[...taken].filter(n => !base || (n > base && n <= base + 99))) + 1;
+  for (const r of rows) if (r.number == null) {
+    while (used.has(next)) next++;
+    if (next > max) return { error: base ? '번호가 99를 넘어요' : '번호가 너무 커요' };
+    r.number = next++;
+  }
   return { entries: rows };
+}
+
+// ── 반 코드 (선생님이 정한다) ──
+// 6~12자, 영문 대문자+숫자, 글자와 숫자를 모두 포함. 쉬운 코드는 남이 알아맞히기 쉬우므로 모두 같은 글자나 흔한 나열은 막는다.
+const WEAK_CODES = new Set(['ABC123', '123ABC', 'ABCD12', 'ABCD1234', 'ABC1234', 'A12345', 'A123456', 'QWER12', 'QWER1234', 'QWERT1', 'ASDF12', 'ASDF1234',
+  'TEST12', 'TEST123', 'TEST1234', 'CLASS1', 'CLASS12', 'CLASS123', 'SCHOOL1', 'SCHOOL12', 'SCHOOL123', 'PASS12', 'PASS123', 'PASS1234']);
+export const normalizeCode = s => String(s ?? '').trim().toUpperCase();
+export function validateClassCode(raw) {
+  const c = normalizeCode(raw);
+  if (c.length < 6 || c.length > 12) return '반 코드는 6~12자로 정해 주세요';
+  if (!/^[A-Z0-9]+$/.test(c)) return '반 코드는 영문 대문자와 숫자만 쓸 수 있어요';
+  if (!/[A-Z]/.test(c) || !/[0-9]/.test(c)) return '반 코드에 영문 글자와 숫자를 모두 넣어 주세요 (예: MUMU42)';
+  if (/(.)\1{4,}/.test(c) || WEAK_CODES.has(c)) return '너무 쉬운 코드예요. 다른 사람이 알아맞히기 어렵게 정해 주세요';
+  return null;
 }
 
 // 반 코드: 영문 대문자+숫자 6자, 헷갈리는 글자(I O 0 1) 제외

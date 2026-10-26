@@ -2,7 +2,7 @@
 //  - 연습 모드(?demo): 브라우저 안의 가짜 데이터 (DB 없음)
 //  - 그 외: Firebase (js/api-firebase.js, 설정은 js/firebase-config.js)
 // 주소에 ?emulator를 붙이면 내 컴퓨터의 Firebase 에뮬레이터에 연결한다 (시험용).
-import { genCode, checkStudentPin } from './core.js';
+import { genCode, checkStudentPin, resolveNumber, normalizeCode, validateClassCode } from './core.js';
 import { isFirebaseConfigured } from './firebase-config.js';
 
 export const DEMO = window.__BT_DEMO__ === true || new URLSearchParams(location.search).has('demo');
@@ -31,7 +31,7 @@ function demoApi() {
   let user = null;
   const find = (code, number) => {
     const c = classes.find(c => c.code === String(code).trim().toUpperCase());
-    const s = c && students.find(s => s.class_id === c.id && s.number === Number(number));
+    const s = c && students.find(s => s.class_id === c.id && s.number === resolveNumber(number, c));
     return c && s ? { c, s } : null;
   };
   const wait = v => new Promise(r => setTimeout(() => r(structuredClone(v)), 80));
@@ -82,7 +82,17 @@ function demoApi() {
     resetPassword: async () => wait(null),
     signOut: async () => { user = null; },
     listClasses: async () => wait(classes),
-    async createClass(name) { const c = { id: 'c' + uid(), name, code: genCode(), goal_m: 500, cm_per_page: 1, created_at: new Date().toISOString() }; classes.push(c); return wait(c); },
+    async createClass(name, { code, grade, room } = {}) {
+      let c2 = genCode();
+      if (code) {
+        c2 = normalizeCode(code); const err = validateClassCode(c2);
+        if (err) throw new Error(err);
+        if (classes.some(c => c.code === c2)) throw new Error('이미 사용 중인 코드예요. 다른 코드를 정해 주세요');
+      }
+      const c = { id: 'c' + uid(), name, code: c2, goal_m: 500, cm_per_page: 1, pinRequired: false, grade: grade && room ? Number(grade) : null, room: grade && room ? Number(room) : null, created_at: new Date().toISOString() };
+      classes.push(c); return wait(c);
+    },
+    async isCodeFree(code) { return wait(!classes.some(c => c.code === normalizeCode(code))); },
     async updateClass(id, patch) { Object.assign(classes.find(c => c.id === id), patch); return wait(null); },
     listStudents: async classId => wait(students.filter(s => s.class_id === classId).sort((a, b) => a.number - b.number)),
     async addStudents(classId, entries) {

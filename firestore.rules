@@ -9,6 +9,8 @@ rules_version = '2';
 //  - 반 목록은 누구도 조회할 수 없다 (list 금지). 코드를 알아야 그 반 문서에 접근한다.
 //  - 반 코드를 아는 사람은 그 반의 학생·책을 읽고, 책을 쌓고 지울 수 있다.
 //  - 반·학생을 만들고 고치는 것은 그 반의 선생님(로그인한 계정)만 가능하다.
+//  - 반 코드는 선생님이 정한다 (6~12자, 영문 대문자+숫자, 글자와 숫자를 모두 포함). 이미 있는 코드는 쓸 수 없다.
+//  - 학번 방식(학년·반을 정한 반): 학생 번호는 학년+반+두 자리 번호(예: 4학년 2반 1번 = 4201).
 service cloud.firestore {
   match /databases/{database}/documents {
 
@@ -30,8 +32,11 @@ service cloud.firestore {
       allow list: if request.auth != null && resource.data.teacherUid == request.auth.uid;
 
       allow create: if request.auth != null
-        && code.matches('[A-Z0-9]{6}')
-        && request.resource.data.keys().hasOnly(['code', 'name', 'goal_m', 'cm_per_page', 'teacherUid', 'created_at', 'pinRequired'])
+        && code.matches('[A-Z0-9]{6,12}') && code.matches('.*[A-Z].*') && code.matches('.*[0-9].*')
+        && request.resource.data.keys().hasOnly(['code', 'name', 'goal_m', 'cm_per_page', 'teacherUid', 'created_at', 'pinRequired', 'grade', 'room'])
+        && (!('grade' in request.resource.data) || (request.resource.data.grade is int && request.resource.data.grade >= 1 && request.resource.data.grade <= 9))
+        && (!('room' in request.resource.data) || (request.resource.data.room is int && request.resource.data.room >= 1 && request.resource.data.room <= 99))
+        && (('grade' in request.resource.data) == ('room' in request.resource.data))
         && (!('pinRequired' in request.resource.data) || request.resource.data.pinRequired is bool)
         && request.resource.data.teacherUid == request.auth.uid
         && request.resource.data.code == code
@@ -58,7 +63,7 @@ service cloud.firestore {
           && (!('left' in request.resource.data) || request.resource.data.left is bool)
           && request.resource.data.number is int
           && string(request.resource.data.number) == number
-          && request.resource.data.number >= 1 && request.resource.data.number <= 9999
+          && request.resource.data.number >= 1 && request.resource.data.number <= 99999
           && nonBlank(request.resource.data.name) && request.resource.data.name.size() <= 30;
         allow delete: if isTeacherOf(code);
       }

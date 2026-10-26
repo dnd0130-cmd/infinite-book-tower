@@ -161,8 +161,9 @@ test('학생 줄 해석: 번호 있는 줄·없는 줄, 빈 번호는 메우지 
   // 이미 있는 번호, 같은 번호 두 번, 범위 밖, 빈 입력
   assert.match(C.parseStudentLines('2 새친구', [1, 2, 3]).error, /2번은 이미/);
   assert.match(C.parseStudentLines('5 가\n5 나').error, /두 번/);
-  assert.match(C.parseStudentLines('0 가').error, /1~9999/);
-  assert.match(C.parseStudentLines('10000 가').error, /1~9999|번호/);
+  assert.match(C.parseStudentLines('0 가').error, /1~99999/);
+  assert.match(C.parseStudentLines('100000 가').error, /1~99999/);
+  assert.equal(C.parseStudentLines('99999 가').entries[0].number, 99999);
   assert.ok(C.parseStudentLines('   \n ').error);
   // 이름이 숫자로 시작해도 구분자(공백·마침표)가 있을 때만 번호로 본다
   assert.equal(C.parseStudentLines('3반장').entries[0].name, '3반장');
@@ -235,4 +236,48 @@ test('조사: 받침에 따라 이/가', () => {
   assert.equal(C.josa('서연아', '이', '가'), '가');   // 아: 받침 없음
   assert.equal(C.josa('Tom', '이', '가'), '가');      // 한글이 아니면 받침 없는 쪽
   assert.equal(C.josa('', '이', '가'), '가');
+});
+
+test('학번: 만들기, 출석번호 뽑기, 입력 해석', () => {
+  assert.equal(C.hakbun(4, 2, 1), 4201); assert.equal(C.hakbun(6, 12, 3), 61203); assert.equal(C.hakbun(4, 2, 25), 4225);
+  const cls = { grade: 4, room: 2 };
+  assert.equal(C.usesHakbun(cls), true); assert.equal(C.usesHakbun({}), false); assert.equal(C.usesHakbun({ grade: 4 }), false);
+  assert.equal(C.hakbunBase(cls), 4200); assert.equal(C.hakbunBase({}), 0);
+  assert.equal(C.seatOf(4207, cls), 7); assert.equal(C.seatOf(7, {}), 7); assert.equal(C.seatOf(5301, cls), 5301);   // 다른 반 학번은 그대로
+  assert.equal(C.numberLabel(4207, cls), '7번'); assert.equal(C.numberLabel(7, {}), '7번');
+  assert.equal(C.resolveNumber(4201, cls), 4201);       // 학번 그대로
+  assert.equal(C.resolveNumber(1, cls), 4201);          // 출석번호만 써도 학번으로
+  assert.equal(C.resolveNumber('12', cls), 4212);
+  assert.equal(C.resolveNumber(1, {}), 1);              // 학번 방식이 아니면 그대로
+});
+
+test('학번 방식 학생 등록 해석', () => {
+  const base = 4200;
+  // 번호 없는 줄은 4201부터, 출석번호(1~99)와 학번(42xx) 모두 허용
+  assert.deepEqual(C.parseStudentLines('김하늘\n이도윤\n박서연', [], base).entries.map(e => e.number), [4201, 4202, 4203]);
+  assert.deepEqual(C.parseStudentLines('7 가\n4210 나\n다', [4201, 4202], base).entries.map(e => e.number), [4207, 4210, 4203]);
+  assert.match(C.parseStudentLines('4301 다른반', [], base).error, /이 반의 번호가 아니에요/);
+  assert.match(C.parseStudentLines('100 범위밖', [], base).error, /이 반의 번호가 아니에요/);
+  assert.match(C.parseStudentLines('3 중복', [4203], base).error, /4203번은 이미/);
+  assert.match(C.parseStudentLines('4 가\n4204 나', [], base).error, /두 번/);
+  // 다른 반(학번 범위 밖)의 번호는 '이미 있는 번호'로 세지 않는다
+  assert.deepEqual(C.parseStudentLines('가', [5301], base).entries.map(e => e.number), [4201]);
+  // 학번 방식이 아닌 반은 예전과 같다
+  assert.deepEqual(C.parseStudentLines('가\n나').entries.map(e => e.number), [1, 2]);
+  assert.equal(C.parseStudentLines('41201 가', []).entries[0].number, 41201);
+});
+
+test('반 코드 검사', () => {
+  assert.equal(C.validateClassCode('mumu42'), null);          // 소문자는 대문자로 보고 통과
+  assert.equal(C.validateClassCode(' GRADE4ROOM2 '), null);
+  assert.match(C.validateClassCode('AB12'), /6~12자/);
+  assert.match(C.validateClassCode('ABCDEFGH12345'), /6~12자/);
+  assert.match(C.validateClassCode('MUMU-42'), /대문자와 숫자만/);
+  assert.match(C.validateClassCode('123456'), /글자와 숫자를 모두/);
+  assert.match(C.validateClassCode('ABCDEF'), /글자와 숫자를 모두/);
+  assert.match(C.validateClassCode('AAAAA1'), /너무 쉬운/);   // 같은 글자 5번 이상 반복
+  assert.match(C.validateClassCode('CLASS1'), /너무 쉬운/);   // 흔한 코드
+  assert.equal(C.normalizeCode(' ab12cd '), 'AB12CD');
+  assert.match(C.validateClassCode('ABC123'), /너무 쉬운/);
+  assert.equal(C.validateClassCode('ABC124'), null);
 });

@@ -1,6 +1,6 @@
 // 교사 화면 (명세서 2.3)
 import { api } from './api.js';
-import { heightM, leader, statsByStudent, suspicious, parseStudentLines, toCsv, pinHash, randomPin } from './core.js';
+import { heightM, leader, statsByStudent, suspicious, parseStudentLines, toCsv, pinHash, randomPin, numberLabel, usesHakbun, hakbunBase, hakbun, validateClassCode, normalizeCode, genCode } from './core.js';
 import { createTower } from './tower.js';
 import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, downloadCsv } from './ui.js';
 
@@ -21,8 +21,65 @@ function promptBox(title, placeholder = '', { value = '', ok = '만들기', max 
   });
 }
 
+// 새 반 만들기 창: 학년·반(선택), 반 이름, 반 코드(선생님이 정하고 중복 확인, 비우면 무작위)
+function newClassDialog() {
+  return new Promise(res => {
+    const back = h(`<div class="modal-back"><form class="modal frame" style="text-align:left" autocomplete="off"><h3 style="text-align:center">새 반 만들기</h3>
+      <div class="row"><label class="field grow"><span>학년 (선택)</span><select class="input" name="grade"><option value="">정하지 않음</option>${[1, 2, 3, 4, 5, 6].map(g => `<option value="${g}">${g}학년</option>`).join('')}</select></label>
+      <label class="field grow"><span>반 (선택)</span><input class="input" name="room" type="number" inputmode="numeric" min="1" max="99" placeholder="2"></label></div>
+      <p class="small muted" style="margin:-2px 0 8px">학년과 반을 정하면 학생 번호가 <b>학번</b>이 돼요 (4학년 2반 1번 → 4201). 정하지 않으면 1, 2, 3… 번호를 써요. 만든 뒤에는 바꿀 수 없어요.</p>
+      <label class="field"><span>반 이름</span><input class="input" name="name" maxlength="50" required placeholder="예: 4학년 2반"></label>
+      <label class="field"><span>반 코드 (6~12자, 영문 대문자+숫자)</span>
+        <div class="row"><input class="input grow" name="code" maxlength="12" autocapitalize="characters" spellcheck="false" placeholder="예: MUMU42" style="letter-spacing:2px"><button type="button" class="btn small" data-a="rand">무작위</button></div></label>
+      <p class="small" data-codemsg style="min-height:1.6em;margin:0 0 6px"></p>
+      <p class="small warn" style="margin:0 0 6px">반 코드를 아는 사람은 이 반의 기록을 볼 수 있어요. 너무 쉬운 코드는 피해 주세요. 만든 뒤에는 바꿀 수 없어요.</p>
+      <div class="actions"><button type="button" class="btn" data-a="no">취소</button><button class="btn primary">만들기</button></div></form></div>`);
+    document.body.append(back);
+    const f = back.querySelector('form'), msg = back.querySelector('[data-codemsg]');
+    let nameTouched = false, free = null, token = 0, timer = 0;
+    const say = (t, tone = '') => { msg.textContent = t; msg.className = 'small' + (tone ? ' ' + tone : ''); };
+    async function check() {
+      const my = ++token, code = f.code.value;
+      free = null;
+      if (!code) { say('비워 두면 무작위 코드가 만들어져요.', 'muted'); return; }
+      const err = validateClassCode(code);
+      if (err) { say(err, 'warn'); return; }
+      say('확인 중…', 'muted');
+      try {
+        const ok = await api.isCodeFree(code);
+        if (my !== token) return;                                     // 그 사이 글자가 바뀌었으면 옛 결과는 버린다
+        free = ok; say(ok ? '✔ 사용할 수 있는 코드예요' : '이미 사용 중인 코드예요. 다른 코드를 정해 주세요', ok ? 'okmsg' : 'warn');
+      } catch { if (my === token) say('중복을 확인하지 못했어요. 만들 때 다시 확인해요', 'muted'); }
+    }
+    f.code.oninput = () => { f.code.value = f.code.value.toUpperCase().replace(/[^A-Z0-9]/g, ''); clearTimeout(timer); timer = setTimeout(check, 350); };
+    f.name.oninput = () => { nameTouched = true; };
+    const autoName = () => { if (!nameTouched && f.grade.value && f.room.value) f.name.value = `${f.grade.value}학년 ${f.room.value}반`; };
+    f.grade.onchange = autoName; f.room.oninput = autoName;
+    f.grade.focus();
+    f.onsubmit = async e => {
+      e.preventDefault();
+      if (!!f.grade.value !== !!f.room.value) return say('학년과 반을 모두 정하거나, 둘 다 비워 주세요', 'warn');
+      const name = f.name.value.trim(); if (!name) return;
+      if (f.code.value) {
+        const err = validateClassCode(f.code.value);
+        if (err) return say(err, 'warn');
+        if (free === null) await check();
+        if (free === false) return;
+      }
+      back.remove(); res({ name, code: f.code.value || undefined, grade: f.grade.value ? Number(f.grade.value) : undefined, room: f.room.value ? Number(f.room.value) : undefined });
+    };
+    back.addEventListener('click', async e => {
+      const a = e.target.dataset?.a;
+      if (a === 'rand') { let c; do { c = genCode(); } while (validateClassCode(c)); f.code.value = c; check(); }
+      else if (a === 'no' || e.target === back) { back.remove(); res(null); }
+    });
+  });
+}
+
 export async function startTeacher(root, { user, onLogout }) {
   let classes = [], cls = null, students = [], books = [], tab = 'tower', filter = '', unsub = null, liveSig = '';
+  const nl = n => numberLabel(n, cls);                                // "7번" (학번 방식 반이면 학번에서 출석번호만)
+  const numHead = () => (usesHakbun(cls) ? '학번' : '번호');         // 표의 머리글
 
   root.innerHTML = `
   <div class="app">
@@ -60,9 +117,9 @@ export async function startTeacher(root, { user, onLogout }) {
 
   X('logout').onclick = async () => { unsub?.(); unsub = null; await api.signOut(); onLogout(); };
   X('new').onclick = async () => {
-    const name = await promptBox('새 반 만들기', '예: 4학년 2반');
-    if (!name) return;
-    try { const c = await api.createClass(name); classes.push(c); await selectClass(c.id); toast(`「${name}」을 만들었어요. 반 코드: ${c.code}`); }
+    const v = await newClassDialog();
+    if (!v) return;
+    try { const c = await api.createClass(v.name, { code: v.code, grade: v.grade, room: v.room }); classes.push(c); await selectClass(c.id); toast(`「${v.name}」을 만들었어요. 반 코드: ${c.code}`); }
     catch (e) { toast(errMsg(e)); }
   };
   X('sel').onchange = e => selectClass(e.target.value);
@@ -125,7 +182,7 @@ export async function startTeacher(root, { user, onLogout }) {
   function renderTower(reset) {
     const cm = Number(cls.cm_per_page), goal = Number(cls.goal_m);
     const num = new Map(students.map(s => [s.id, s.number]));
-    tower.update({ books, cmPerPage: cm, goalM: goal, mode: 'class', numberOf: id => num.get(id), nameOf: id => { const s = students.find(x => x.id === id); return s ? `${s.number}번 ${s.name}` : ''; }, leader: leader(students, books) }, { reset });
+    tower.update({ books, cmPerPage: cm, goalM: goal, mode: 'class', numberOf: id => num.get(id), nameOf: id => { const s = students.find(x => x.id === id); return s ? `${nl(s.number)} ${s.name}` : ''; }, leader: leader(students, books) }, { reset });
     const pages = books.reduce((s, b) => s + b.pages, 0), M = heightM(pages, cm);
     const pct = goal > 0 ? Math.min(100, M / goal * 100) : 0;
     const L = tower.layout;
@@ -148,7 +205,7 @@ export async function startTeacher(root, { user, onLogout }) {
     const nWarn = books.filter(suspicious).length;
     P('check').innerHTML = `
       <div class="frame" style="margin-bottom:12px"><div class="row" style="margin-bottom:8px"><h2 class="grow" style="margin:0">학생별 현황</h2><button class="btn small" data-x="csv1">CSV 받기</button></div><div class="scroll-x"><table class="grid">
-        <tr><th>번호</th><th>이름</th><th>책 수</th><th>쪽수 합</th><th>높이</th><th>마지막 입력</th></tr>
+        <tr><th>${numHead()}</th><th>이름</th><th>책 수</th><th>쪽수 합</th><th>높이</th><th>마지막 입력</th></tr>
         ${rows.map(r => `<tr><td class="num">${r.s.number}</td><td>${esc(r.s.name)}${r.s.left ? ' <span class="muted">(전학)</span>' : ''}</td><td class="num">${r.count}</td><td class="num">${fmtN(r.pages)}</td>
           <td class="num">${fmtM(heightM(r.pages, cm))}</td><td>${r.last ? fmtDate(r.last) : '<span class="warn">미입력</span>'}</td></tr>`).join('')}
         ${rows.length ? '' : '<tr><td colspan="6" class="muted">학생 탭에서 학생을 등록해 주세요</td></tr>'}
@@ -156,7 +213,7 @@ export async function startTeacher(root, { user, onLogout }) {
       <div class="frame"><div class="row" style="margin-bottom:8px;flex-wrap:wrap"><h2 class="grow" style="margin:0">전체 기록 ${nWarn ? `<span class="warn small">⚠️ 확인 필요 ${nWarn}건</span>` : ''}</h2>
         <button class="btn small" data-x="csv2">CSV 받기</button>
         <select class="input" style="width:auto" data-x="filter"><option value="">전체 학생</option>
-        ${students.map(s => `<option value="${s.id}" ${s.id === filter ? 'selected' : ''}>${s.number}번 ${esc(s.name)}${s.left ? ' (전학)' : ''}</option>`).join('')}</select></div>
+        ${students.map(s => `<option value="${s.id}" ${s.id === filter ? 'selected' : ''}>${nl(s.number)} ${esc(s.name)}${s.left ? ' (전학)' : ''}</option>`).join('')}</select></div>
         <div class="scroll-x"><table class="grid"><tr><th>날짜</th><th>학생</th><th>제목</th><th>쪽수</th><th>한 줄 느낌</th><th></th></tr>
         ${list.map(b => { const s = name.get(b.student_id); const w = suspicious(b);
           return `<tr${w ? ' style="background:#fff0ee"' : ''}><td>${fmtDate(b.created_at)}</td><td>${s ? `${s.number}. ${esc(s.name)}` : ''}</td>
@@ -168,12 +225,12 @@ export async function startTeacher(root, { user, onLogout }) {
     const ymd = iso => new Date(iso).toLocaleDateString('sv-SE');
     const fname = kind => `${cls.name.replace(/[\\/:*?"<>|]/g, '_')}_${kind}.csv`;
     X('csv1').onclick = () => {
-      const out = [['번호', '이름', '상태', '책 수', '쪽수 합', '높이(m)', '마지막 입력']];
+      const out = [[numHead(), '이름', '상태', '책 수', '쪽수 합', '높이(m)', '마지막 입력']];
       rows.forEach(r => out.push([r.s.number, r.s.name, r.s.left ? '전학' : '', r.count, r.pages, Math.round(heightM(r.pages, cm) * 100) / 100, r.last ? ymd(r.last) : '']));
       downloadCsv(fname('학생별_요약'), toCsv(out)); toast('학생별 요약을 내려받았어요');
     };
     X('csv2').onclick = () => {
-      const out = [['날짜', '번호', '이름', '책 제목', '쪽수', '한 줄 느낌']];
+      const out = [['날짜', numHead(), '이름', '책 제목', '쪽수', '한 줄 느낌']];
       books.slice().sort((a, b) => a.created_at.localeCompare(b.created_at)).forEach(b => { const s = name.get(b.student_id); out.push([ymd(b.created_at), s?.number ?? '', s?.name ?? '', b.title, b.pages, b.note || '']); });
       downloadCsv(fname('전체_기록'), toCsv(out)); toast('전체 기록을 내려받았어요');
     };
@@ -188,13 +245,13 @@ export async function startTeacher(root, { user, onLogout }) {
   function showPins(list, title) {
     const back = h(`<div class="modal-back"><div class="modal frame"><h3>${esc(title)}</h3>
       <p class="small warn" style="margin:4px 0 8px">이 창을 닫으면 비밀번호를 다시 볼 수 없어요. 학생에게 알려 주거나 CSV로 받아 두세요.</p>
-      <div class="scroll-x" style="max-height:50vh;overflow-y:auto"><table class="grid" style="text-align:left"><tr><th>번호</th><th>이름</th><th>비밀번호</th></tr>
+      <div class="scroll-x" style="max-height:50vh;overflow-y:auto"><table class="grid" style="text-align:left"><tr><th>${numHead()}</th><th>이름</th><th>비밀번호</th></tr>
       ${list.map(x => `<tr><td class="num">${x.number}</td><td>${esc(x.name)}</td><td><b style="letter-spacing:3px">${x.pin}</b></td></tr>`).join('')}</table></div>
       <div class="actions"><button class="btn" data-a="csv">CSV로 받기</button><button class="btn primary" data-a="ok">닫기</button></div></div></div>`);
     document.body.append(back);
     back.addEventListener('click', e => {
       const a = e.target.dataset?.a;
-      if (a === 'csv') downloadCsv(`${cls.name.replace(/[\\/:*?"<>|]/g, '_')}_학생_비밀번호.csv`, toCsv([['번호', '이름', '비밀번호'], ...list.map(x => [x.number, x.name, x.pin])]));
+      if (a === 'csv') downloadCsv(`${cls.name.replace(/[\\/:*?"<>|]/g, '_')}_학생_비밀번호.csv`, toCsv([[numHead(), '이름', '비밀번호'], ...list.map(x => [x.number, x.name, x.pin])]));
       else if (a === 'ok') back.remove();
     });
   }
@@ -208,13 +265,15 @@ export async function startTeacher(root, { user, onLogout }) {
 
   function renderStudents() {
     const cnt = new Map(); books.forEach(b => cnt.set(b.student_id, (cnt.get(b.student_id) || 0) + 1));
-    const nextNo = students.length ? Math.max(...students.map(s => s.number)) + 1 : 1;
+    const base = hakbunBase(cls), inBlock = students.map(s => s.number).filter(n => !base || (n > base && n <= base + 99));
+    const nextNo = (inBlock.length ? Math.max(...inBlock) - base : 0) + 1;
     const nLeft = students.filter(s => s.left).length;
     const pinOn = !!cls.pinRequired;
     P('students').innerHTML = `
       <div class="frame" style="margin-bottom:12px;max-width:640px"><h2>학생 등록</h2>
         <p class="small muted" style="margin-top:0">이름을 한 줄에 한 명씩 적으세요. 번호를 안 쓰면 <b>${nextNo}번</b>부터 차례로 붙고,
-        <b>7 박서연</b>처럼 앞에 번호를 쓰면 그 번호로 등록해요.</p>
+        <b>7 박서연</b>처럼 앞에 번호를 쓰면 그 번호로 등록해요.
+        ${usesHakbun(cls) ? `<br>학번 방식이에요: 번호 <b>1</b>번은 학번 <b>${hakbun(cls.grade, cls.room, 1)}</b>이 되고, 학생은 학번(또는 번호만)을 입력해 들어와요.` : ''}</p>
         <p class="small muted">이름은 <b>별명이나 이니셜(예: 김하)</b>로 등록해도 돼요. 이름 말고 다른 개인정보는 받지 않아요.</p>
         <textarea class="input" rows="6" data-x="names" placeholder="김하늘&#10;이도윤&#10;7 박서연"></textarea>
         <button class="btn primary" style="margin-top:8px" data-x="add">등록</button></div>
@@ -223,7 +282,7 @@ export async function startTeacher(root, { user, onLogout }) {
         <p class="small muted" style="margin-top:0">전학 간 친구는 <b>전학</b>을 누르세요. 입장이 막히고 다독왕에서 빠지지만, 쌓은 책은 반 탑에 남아요.
         새로 온 친구는 새 번호로 등록하세요 (옛 번호를 이어 쓰지 않아요).
         ${pinOn ? '' : '학생 비밀번호는 설정 탭에서 켤 수 있어요.'}</p>
-        <div class="scroll-x"><table class="grid"><tr><th>번호</th><th>이름</th><th>책</th>${pinOn ? '<th>비밀번호</th>' : ''}<th></th></tr>
+        <div class="scroll-x"><table class="grid"><tr><th>${numHead()}</th><th>이름</th><th>책</th>${pinOn ? '<th>비밀번호</th>' : ''}<th></th></tr>
         ${students.map(s => `<tr${s.left ? ' style="opacity:.6"' : ''}><td class="num">${s.number}</td>
           <td>${esc(s.name)}${s.left ? ' <span class="warn small">전학</span>' : ''}</td><td class="num">${cnt.get(s.id) || 0}권</td>
           ${pinOn ? `<td style="white-space:nowrap">${s.pinHash ? '설정됨' : '<span class="warn">없음</span>'} <button class="btn small" data-spin="${s.id}">${s.pinHash ? '바꾸기' : '정하기'}</button></td>` : ''}
@@ -232,9 +291,9 @@ export async function startTeacher(root, { user, onLogout }) {
             <button class="btn small danger" data-sdel="${s.id}">삭제</button></td></tr>`).join('')}
         ${students.length ? '' : `<tr><td colspan="${pinOn ? 5 : 4}" class="muted">아직 학생이 없어요</td></tr>`}</table></div></div>`;
     X('add').onclick = async () => {
-      const r = parseStudentLines(X('names').value, students.map(s => s.number));
+      const r = parseStudentLines(X('names').value, students.map(s => s.number), hakbunBase(cls));
       if (r.error) return toast(r.error);
-      try { await api.addStudents(cls.id, r.entries); toast(`${r.entries.length}명을 등록했어요 (${r.entries.map(e => e.number).join(', ')}번)`); await reload(); } catch (e) { toast(errMsg(e)); }
+      try { await api.addStudents(cls.id, r.entries); toast(`${r.entries.length}명을 등록했어요 (${r.entries.map(e => e.number).join(', ')}${usesHakbun(cls) ? '' : '번'})`); await reload(); } catch (e) { toast(errMsg(e)); }
     };
     if (pinOn) {
       X('pinsall').onclick = async () => {
@@ -245,23 +304,23 @@ export async function startTeacher(root, { user, onLogout }) {
       };
       P('students').querySelectorAll('[data-spin]').forEach(btn => btn.onclick = async () => {
         const s = students.find(x => x.id === btn.dataset.spin);
-        try { await makePins([s], `${s.number}번 ${s.name} 비밀번호`); } catch (e) { toast(errMsg(e)); }
+        try { await makePins([s], `${nl(s.number)} ${s.name} 비밀번호`); } catch (e) { toast(errMsg(e)); }
       });
     }
     P('students').querySelectorAll('[data-srename]').forEach(btn => btn.onclick = async () => {
       const s = students.find(x => x.id === btn.dataset.srename);
-      const name = await promptBox(`${s.number}번 이름 고치기`, '', { value: s.name, ok: '저장', max: 30 });
+      const name = await promptBox(`${nl(s.number)} 이름 고치기`, '', { value: s.name, ok: '저장', max: 30 });
       if (!name || name === s.name) return;
       try { await api.renameStudent(cls.id, s.id, name); toast('이름을 고쳤어요'); await reload(); } catch (e) { toast(errMsg(e)); }
     });
     P('students').querySelectorAll('[data-sleft]').forEach(btn => btn.onclick = async () => {
       const s = students.find(x => x.id === btn.dataset.sleft), to = !s.left;
-      if (to && !await confirmBox(`${s.number}번 ${s.name} 학생을 전학 처리할까요?\n이 번호로는 입장할 수 없고 다독왕에서 빠져요.\n쌓은 책 ${cnt.get(s.id) || 0}권은 반 탑에 그대로 남아요.`, '전학 처리')) return;
+      if (to && !await confirmBox(`${nl(s.number)} ${s.name} 학생을 전학 처리할까요?\n이 번호로는 입장할 수 없고 다독왕에서 빠져요.\n쌓은 책 ${cnt.get(s.id) || 0}권은 반 탑에 그대로 남아요.`, '전학 처리')) return;
       try { await api.setStudentLeft(cls.id, s.id, to); toast(to ? '전학 처리했어요' : '다시 반에 넣었어요'); await reload(); } catch (e) { toast(errMsg(e)); }
     });
     P('students').querySelectorAll('[data-sdel]').forEach(btn => btn.onclick = async () => {
       const s = students.find(x => x.id === btn.dataset.sdel), n = cnt.get(s.id) || 0;
-      if (!await confirmBox(`${s.number}번 ${s.name} 학생을 완전히 삭제할까요?\n이 학생이 쌓은 책 ${n}권도 함께 삭제되고, 반 탑이 낮아져요.\n(전학이라면 삭제 대신 '전학'을 쓰세요)`)) return;
+      if (!await confirmBox(`${nl(s.number)} ${s.name} 학생을 완전히 삭제할까요?\n이 학생이 쌓은 책 ${n}권도 함께 삭제되고, 반 탑이 낮아져요.\n(전학이라면 삭제 대신 '전학'을 쓰세요)`)) return;
       try { await api.deleteStudent(cls.id, s.id); toast('삭제했어요'); await reload(); } catch (e) { toast(errMsg(e)); }
     });
   }
@@ -281,6 +340,7 @@ export async function startTeacher(root, { user, onLogout }) {
       <label class="field"><span>학급 이름</span><input class="input" name="cname" maxlength="50" required value="${esc(cls.name)}"></label>
       <label class="field"><span>우리 반 목표 높이 (m)</span><input class="input" name="goal" type="number" min="1" step="any" required value="${cls.goal_m}"></label>
       <p class="small muted">학생 입장용 반 코드: <b class="code" style="padding:0 6px">${esc(cls.code)}</b></p>
+      ${usesHakbun(cls) ? `<p class="small muted">학번 방식: ${cls.grade}학년 ${cls.room}반 (예: 1번 → ${hakbun(cls.grade, cls.room, 1)})</p>` : ''}
       <button class="btn primary">저장</button></form>
       <div class="frame" style="max-width:460px;margin-bottom:12px"><h2>학생 비밀번호 (선택)</h2>
         <p class="small muted" style="margin-top:0">켜면 학생이 반 코드·번호와 함께 <b>숫자 4자리 비밀번호</b>를 넣어야 들어와요. 친구가 번호만 알고 들어오는 장난을 막아 줘요.

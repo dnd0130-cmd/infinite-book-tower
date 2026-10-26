@@ -56,6 +56,37 @@ test('반 만들기: 로그인한 선생님만, 형식이 맞아야 한다', asy
   await assertFails(setDoc(doc(teacher(T2), 'classes', 'RRR222'), classDoc(T2, { code: 'RRR222', admin: true })));
 });
 
+test('반 코드는 선생님이 정한다: 6~12자, 대문자+숫자, 글자와 숫자를 모두 포함', async () => {
+  const mk = (code, over = {}) => setDoc(doc(teacher(T2), 'classes', code), classDoc(T2, { code, ...over }));
+  await assertSucceeds(mk('MUMU42'));
+  await assertSucceeds(mk('GRADE4ROOM2'));            // 11자
+  await assertFails(mk('123456'));                      // 숫자만
+  await assertFails(mk('ABCDEF'));                      // 글자만
+  await assertFails(mk('AB12'));                        // 너무 짧음
+  await assertFails(mk('ABCDEFGH12345'));               // 13자, 너무 김
+  await assertFails(mk('mumu42'));                      // 소문자
+  await assertFails(mk('MUMU-42'));                     // 기호
+  // 이미 있는 코드는 덮어쓸 수 없다 (다른 선생님도, 같은 선생님도)
+  await assertFails(setDoc(doc(teacher(T2), 'classes', CODE), classDoc(T2)));
+  await assertFails(setDoc(doc(teacher(T1), 'classes', CODE), classDoc(T1)));
+});
+
+test('학번 방식: 학년·반은 함께, 범위 안에서만', async () => {
+  const mk = (code, over) => setDoc(doc(teacher(T2), 'classes', code), classDoc(T2, { code, ...over }));
+  await assertSucceeds(mk('HAK4B2', { grade: 4, room: 2 }));
+  await assertSucceeds(mk('HAK6B12', { grade: 6, room: 12 }));
+  await assertFails(mk('HAK4B3', { grade: 4 }));                    // 학년만
+  await assertFails(mk('HAK4B4', { room: 2 }));                     // 반만
+  await assertFails(mk('HAK0B5', { grade: 0, room: 2 }));
+  await assertFails(mk('HAK4B6', { grade: 4, room: 100 }));
+  await assertFails(mk('HAK4B7', { grade: 4.5, room: 2 }));
+  await assertFails(updateDoc(doc(teacher(T1), 'classes', CODE), { grade: 5 }));   // 만든 뒤에는 바꿀 수 없음
+  // 학번(5자리)까지 학생 번호로 허용
+  await assertSucceeds(setDoc(doc(teacher(T1), 'classes', CODE, 'students', '41201'), { number: 41201, name: '학번' }));
+  await assertSucceeds(setDoc(doc(teacher(T1), 'classes', CODE, 'students', '99999'), { number: 99999, name: '끝' }));
+  await assertFails(setDoc(doc(teacher(T1), 'classes', CODE, 'students', '100000'), { number: 100000, name: '범위 밖' }));
+});
+
 test('반 설정: 주인 선생님만, 이름·목표·쪽당 높이만 바꾼다', async () => {
   await assertSucceeds(updateDoc(doc(teacher(T1), 'classes', CODE), { name: '새 이름', goal_m: 700 }));
   await assertFails(updateDoc(doc(teacher(T2), 'classes', CODE), { name: '가로채기' }));

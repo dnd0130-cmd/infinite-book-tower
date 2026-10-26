@@ -1,7 +1,7 @@
 // 교실 TV 화면: 로그인 없이 `?tv=반코드`로 열면 우리 반 책탑이 크게 보이고, 새 책이 쌓이면 바로 알려 준다.
 // 반 코드가 곧 그 반의 비밀 주소이므로 TV 주소를 아는 사람은 그 반 기록을 볼 수 있다 (학생 입장과 같은 수준).
 import { api } from './api.js';
-import { heightM, leader, josa } from './core.js';
+import { heightM, leader, josa, numberLabel } from './core.js';
 import { getLandmarks } from './landmarks.js';
 import { createTower } from './tower.js';
 import { $, esc, fmtM, fmtN, confettiHtml } from './ui.js';
@@ -60,7 +60,7 @@ export async function startTv(root, code) {
     const numberOf = new Map(students.map(x => [x.id, x.number]));
     const nameOf = id => students.find(x => x.id === id)?.name || '';
     tower.update({
-      books, cmPerPage: cm, goalM: goal, mode: 'class', numberOf: id => numberOf.get(id), nameOf: id => { const st = students.find(x => x.id === id); return st ? `${st.number}번 ${st.name}` : ''; },
+      books, cmPerPage: cm, goalM: goal, mode: 'class', numberOf: id => numberOf.get(id), nameOf: id => { const st = students.find(x => x.id === id); return st ? `${numberLabel(st.number, cls)} ${st.name}` : ''; },
       leader: leader(students, books),
     }, { reset: first });
     const pages = books.reduce((a, b) => a + b.pages, 0), M = heightM(pages, cm), pct = goal > 0 ? Math.min(100, M / goal * 100) : 0;
