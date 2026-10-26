@@ -229,6 +229,7 @@ export async function startTeacher(root, { user, onLogout }) {
       <div class="small" style="margin-top:6px">목표 ${fmtM(goal)} 중 ${Math.floor(pct)}%</div>
       <div class="bar"><i style="width:${pct}%"></i></div>
       ${L && !L.allDone ? `<p class="small" style="margin:8px 0 0">다음 목표 <b>${esc(L.next.name)}</b>까지 <b>${fmtM(L.landmark.remainingM)}</b></p>` : ''}
+      <p class="small muted" style="margin:8px 0 0">환산 비율: 1쪽 = ${cm}cm (100쪽 = ${fmtM(cm)})</p>
       <button class="btn small" style="margin-top:10px" data-x="tvbtn">📺 교실 TV로 열기</button>`;
     X('tvbtn').onclick = () => { const u = new URL(location.href); u.search = ''; for (const k of ['demo', 'emulator']) if (new URL(location.href).searchParams.has(k)) u.searchParams.set(k, ''); u.searchParams.set('tv', cls.code); window.open(u.toString(), '_blank'); };
     if (L) renderDex(X('dex'), L.reachedCount);
