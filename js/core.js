@@ -163,8 +163,8 @@ export const suspicious = b => b.pages >= 800 || b.title.trim().length < 2 || /^
 
 /**
  * 학생 일괄 등록 글 해석. 한 줄에 한 명: "이름" 또는 "번호 이름" (예: "3 박서연", "3. 박서연").
- *  - 번호가 없는 줄은 (이미 있는 번호와 이번에 쓴 번호 중 가장 큰 것)+1부터 차례로 붙인다. 빈 번호를 메우지 않는다
- *    (전학 간 학생의 번호를 새 학생이 물려받지 않게).
+ *  - 번호가 없는 줄은 '이미 있는 번호 중 가장 큰 것'+1부터 차례로 붙인다. 이번에 직접 쓴 번호는 건너뛴다.
+ *    이미 있는 번호들 사이의 빈 번호는 메우지 않는다 (전학 간 학생의 번호를 새 학생이 물려받지 않게).
  *  - 이미 있는 번호, 같은 번호 중복, 1~9999 밖의 번호는 오류.
  * 반환: { entries: [{ number, name }] } 또는 { error }
  */
@@ -186,8 +186,8 @@ export function parseStudentLines(text, existingNumbers = []) {
     if (used.has(r.number)) return { error: `${r.number}번이 두 번 적혀 있어요` };
     used.add(r.number);
   }
-  let next = Math.max(0, ...taken, ...used) + 1;
-  for (const r of rows) if (r.number == null) r.number = next++;
+  let next = Math.max(0, ...taken) + 1;
+  for (const r of rows) if (r.number == null) { while (used.has(next)) next++; r.number = next++; }
   if (rows.some(r => r.number > 9999)) return { error: '번호가 9999를 넘어요' };
   return { entries: rows };
 }

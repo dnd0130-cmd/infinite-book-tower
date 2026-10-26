@@ -151,9 +151,11 @@ test('입력 검증과 이스케이프', () => {
 
 test('학생 줄 해석: 번호 있는 줄·없는 줄, 빈 번호는 메우지 않는다', () => {
   const r = C.parseStudentLines('김하늘\n\n이도윤\n7 박서연\n3. 최지호\n정하은', [1, 2, 4, 5]);
-  assert.deepEqual(r.entries, [
-    { number: 8, name: '김하늘' }, { number: 9, name: '이도윤' }, { number: 7, name: '박서연' }, { number: 3, name: '최지호' }, { number: 10, name: '정하은' },
+  assert.deepEqual(r.entries, [   // 번호 없는 줄은 기존 최대(5)+1부터, 직접 쓴 7은 건너뜀, 비어 있는 3은 메우지 않음
+    { number: 6, name: '김하늘' }, { number: 8, name: '이도윤' }, { number: 7, name: '박서연' }, { number: 3, name: '최지호' }, { number: 9, name: '정하은' },
   ]);
+  // 빈 반에서 섞어 써도 번호 없는 줄이 1번부터
+  assert.deepEqual(C.parseStudentLines('가\n7 나\n다').entries.map(e => e.number), [1, 7, 2]);
   // 아무것도 없으면 1번부터
   assert.deepEqual(C.parseStudentLines('가\n나').entries.map(e => e.number), [1, 2]);
   // 이미 있는 번호, 같은 번호 두 번, 범위 밖, 빈 입력
