@@ -170,7 +170,7 @@ export function createTower(root) {
       parts.push(`<div class="tw-now" style="top:${L.topY - 1}px;z-index:3"></div>`);
       parts.push(`<div class="tw-bubble" style="left:${cx}px;top:${L.topY - 10}px;z-index:4">${fmtM(L.totalM)} · ${fmtN(L.pages)}쪽</div>`);
     } else {
-      parts.push(`<div class="tw-empty" style="top:${L.groundY - 120}px;z-index:4">아직 쌓인 책이 없어요</div>`);
+      parts.push(`<div class="tw-empty" style="top:${Math.max(30, L.landmark.topY - 60)}px;z-index:4">아직 쌓인 책이 없어요</div>`);
     }
 
     // 7. 땅

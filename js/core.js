@@ -45,8 +45,10 @@ export function computeLayout({ books, cmPerPage, goalM, mode, zoom, viewH }) {
   if (goal > 0 && goal <= fitM * 3) fitM = Math.max(fitM, goal * 1.08);
   const maxM = Math.max(fitM, goal * 1.08);
 
-  let ppm = (viewH - 90) / fitM * zoom;
-  ppm = Math.min(ppm, 40000 / maxM);
+  // 기본 배율(zoom 1)은 40000px 안에 담기게 하고, 확대는 그 위로 4배(160000px)까지 허용한다.
+  // 목표가 멀고 책이 적을 때도 확대 버튼이 반응하도록, 확대 배율은 상한에 막힌 기본 배율 기준으로 곱한다.
+  const ppm0 = Math.min((viewH - 90) / fitM, 40000 / maxM);
+  const ppm = Math.min(ppm0 * zoom, 160000 / maxM);
   const H = Math.max(Math.round(maxM * ppm + 90), viewH);
   const groundY = H - GROUND;
   const topM = groundY / ppm;                       // 화면 맨 위가 나타내는 높이(m)
