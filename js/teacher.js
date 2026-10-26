@@ -1,6 +1,6 @@
 // 교사 화면 (명세서 2.3)
 import { api } from './api.js';
-import { heightM, leader, statsByStudent, suspicious, parseStudentLines, toCsv, numberLabel, usesHakbun, hakbunBase, hakbun, validateClassCode, genCode } from './core.js';
+import { heightM, leader, statsByStudent, suspicious, validateBook, needsPageConfirm, parseStudentLines, toCsv, numberLabel, usesHakbun, hakbunBase, hakbun, validateClassCode, genCode } from './core.js';
 import { createTower } from './tower.js';
 import { $, h, esc, fmtM, fmtN, fmtDate, toast, errMsg, confirmBox, renderDex, downloadCsv, qrDialog } from './ui.js';
 
@@ -103,6 +103,14 @@ export async function startTeacher(root, { user, onLogout }) {
       <div class="tower-col"><div data-x="tower"></div></div>
       <div class="side">
         <div class="frame" data-x="summary"></div>
+        <form class="frame" data-x="mybook" autocomplete="off">
+          <h2>선생님도 책 쌓기</h2>
+          <label class="field"><span>책 제목</span><input class="input" name="title" maxlength="100" required></label>
+          <label class="field"><span>읽은 쪽수 (1~3000)</span><input class="input" name="pages" type="number" inputmode="numeric" min="1" max="3000" step="1" required></label>
+          <label class="field"><span>한 줄 느낌 (꼭 적어 주세요)</span><input class="input" name="note" maxlength="200" required></label>
+          <button class="btn primary" style="width:100%">쌓기!</button>
+          <p class="small muted" style="margin:6px 0 0">처음 쌓으면 학생 명단에 '선생님'이 등록돼요.</p>
+        </form>
         <div class="frame"><h2>랜드마크 도감</h2><div class="dex" data-x="dex"></div></div>
       </div>
     </div>
@@ -115,6 +123,26 @@ export async function startTeacher(root, { user, onLogout }) {
   const P = k => $(`[data-p="${k}"]`, root);
   const towerEl = X('tower');
   const tower = createTower(towerEl);
+
+  // 선생님도 학생처럼 책을 쌓는다: 처음이면 '선생님'을 학생으로 등록(99번부터 거꾸로 빈 번호)하고 그 번호로 쌓는다
+  X('mybook').onsubmit = async e => {
+    e.preventDefault();
+    const f = e.target, v = validateBook({ title: f.title.value, pages: f.pages.value, note: f.note.value });
+    if (v.error) return toast(v.error);
+    const btn = f.querySelector('button'); btn.disabled = true;
+    try {
+      if (needsPageConfirm(v.pages) && !await confirmBox(`「${v.title}」 ${fmtN(v.pages)}쪽이 맞나요?\n쪽수를 잘못 쓰면 탑이 엄청 높아져요.`, '맞아요', { cancel: '다시 쓸게요', tone: 'primary' })) return;
+      let me = students.find(s => s.name === '선생님' && !s.left);
+      if (!me) {
+        const base = hakbunBase(cls), used = new Set(students.map(s => s.number));
+        let seat = 99; while (seat > 1 && used.has(base + seat)) seat--;
+        me = { number: base + seat };
+        await api.addStudents(cls.id, [{ number: me.number, name: '선생님' }]);
+      }
+      await api.addBook(cls.code, me.number, v);
+      f.reset(); toast(`「${v.title}」 ${v.pages}쪽을 쌓았어요!`); await reload();
+    } catch (err) { toast(errMsg(err)); } finally { btn.disabled = false; }
+  };
 
   X('qr').onclick = () => {
     if (!cls) return;
@@ -266,8 +294,7 @@ export async function startTeacher(root, { user, onLogout }) {
         ${usesHakbun(cls) ? `<br>학번 방식이에요: 번호 <b>1</b>번은 학번 <b>${hakbun(cls.grade, cls.room, 1)}</b>이 되고, 학생은 학번(또는 번호만)을 입력해 들어와요.` : ''}</p>
         <p class="small muted">이름은 <b>별명이나 이니셜(예: 김하)</b>로 등록해도 돼요. 이름 말고 다른 개인정보는 받지 않아요.</p>
         <textarea class="input" rows="6" data-x="names" placeholder="김하늘&#10;이도윤&#10;7 박서연"></textarea>
-        <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn primary" data-x="add">등록</button>
-        <button class="btn" data-x="addme" title="선생님도 학생처럼 책을 쌓을 수 있어요">선생님도 참여하기</button></div></div>
+        <div class="row" style="margin-top:8px;flex-wrap:wrap"><button class="btn primary" data-x="add">등록</button></div></div>
       <div class="frame" style="max-width:640px"><div class="row" style="flex-wrap:wrap;margin-bottom:6px"><h2 class="grow" style="margin:0">학생 목록 (${students.length}명${nLeft ? ` · 전학 ${nLeft}명` : ''})</h2>
 </div>
         <p class="small muted" style="margin-top:0">전학 간 친구는 <b>전학</b>을 누르세요. 입장이 막히고 다독왕에서 빠지지만, 쌓은 책은 반 탑에 남아요.
@@ -279,13 +306,6 @@ export async function startTeacher(root, { user, onLogout }) {
             <button class="btn small" data-sleft="${s.id}">${s.left ? '복귀' : '전학'}</button>
             <button class="btn small danger" data-sdel="${s.id}">삭제</button></td></tr>`).join('')}
         ${students.length ? '' : `<tr><td colspan="4" class="muted">아직 학생이 없어요</td></tr>`}</table></div></div>`;
-    X('addme').onclick = async () => {
-      const base = hakbunBase(cls), used = new Set(students.map(s => s.number));
-      if (students.some(s => s.name === '선생님' && !s.left)) return toast('선생님은 이미 등록되어 있어요');
-      let seat = 99; while (seat > 1 && used.has(base + seat)) seat--;            // 99번부터 거꾸로 빈 번호를 쓴다
-      const no = base + seat;
-      try { await api.addStudents(cls.id, [{ number: no, name: '선생님' }]); toast(`선생님을 등록했어요. 학생 입장 화면에 ${no}를 입력하면 들어가요`); await reload(); } catch (e) { toast(errMsg(e)); }
-    };
     X('add').onclick = async () => {
       const r = parseStudentLines(X('names').value, students.map(s => s.number), hakbunBase(cls));
       if (r.error) return toast(r.error);
