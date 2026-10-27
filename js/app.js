@@ -16,6 +16,20 @@ const saved = {
   clear() { try { localStorage.removeItem(STUDENT_KEY); } catch { /* 무시 */ } },
 };
 
+// 방문자 수: 이 기기에서 하루에 한 번만 세고, 로그인 화면 아래에 보여 준다 (실패해도 앱은 그대로 쓴다)
+let visitText = '';
+async function trackVisit() {
+  try {
+    const day = new Date().toLocaleDateString('sv-SE');
+    let first = true;
+    try { first = localStorage.getItem('bt_visit') !== day; } catch { /* 저장 불가 환경은 매번 센다 */ }
+    const v = await api.visits({ count: first });
+    if (first) try { localStorage.setItem('bt_visit', day); } catch { /* 무시 */ }
+    visitText = v ? `방문 오늘 ${v.today.toLocaleString('ko-KR')} · 누적 ${v.total.toLocaleString('ko-KR')}` : '';
+    const el = $('[data-visits]', root); if (el) el.textContent = visitText;
+  } catch { /* 방문자 수를 못 불러와도 무시 */ }
+}
+
 function showLogin() {
   const last = saved.get();
   const urlCode = (new URLSearchParams(location.search).get('code') || '').toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 12);   // QR 코드로 들어오면 반 코드가 채워져 있다
@@ -44,6 +58,7 @@ function showLogin() {
       </form>
     </div>
     <button type="button" class="linkbtn on-sky" data-privacy>저장하는 정보 안내</button>
+    <div class="small on-sky" data-visits style="margin-top:6px;z-index:1;position:relative">${visitText}</div>
     <div class="city" style="background:url(${cityTileUrl()}) repeat-x bottom left/${120 * U}px ${60 * U}px"></div>
   </div>`;
 
@@ -124,6 +139,7 @@ async function boot() {
   await preloadLandmarkPngs();
   const tv = new URLSearchParams(location.search).get('tv');       // 교실 TV 화면: 로그인 없이 반 코드로
   if (tv) return startTv(root, tv.trim().toUpperCase());
+  trackVisit();
   try {
     const user = await api.user();
     if (user) return startTeacher(root, { user, onLogout: showLogin });

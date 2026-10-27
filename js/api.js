@@ -90,6 +90,7 @@ function demoApi() {
       const c = { id: 'c' + uid(), name, code: c2, goal_m: 500, cm_per_page: 1, grade: grade && room ? Number(grade) : null, room: grade && room ? Number(room) : null, created_at: new Date().toISOString() };
       classes.push(c); return wait(c);
     },
+    async visits() { return null; },   // 연습 모드에는 방문자 수가 없다
     async isCodeFree(code) { return wait(!classes.some(c => c.code === normalizeCode(code))); },
     async updateClass(id, patch) { Object.assign(classes.find(c => c.id === id), patch); return wait(null); },
     listStudents: async classId => wait(students.filter(s => s.class_id === classId).sort((a, b) => a.number - b.number)),

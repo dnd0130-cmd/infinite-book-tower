@@ -123,6 +123,8 @@ export async function startTeacher(root, { user, onLogout }) {
   const P = k => $(`[data-p="${k}"]`, root);
   const towerEl = X('tower');
   const tower = createTower(towerEl);
+  let visitText = '';
+  api.visits?.({ count: false }).then(v => { if (!v) return; visitText = `방문 오늘 ${fmtN(v.today)} · 누적 ${fmtN(v.total)}`; const el = X('visits'); if (el) el.textContent = visitText; }).catch(() => {});
 
   // 선생님도 학생처럼 책을 쌓는다: 처음이면 '선생님'을 학생으로 등록(99번부터 거꾸로 빈 번호)하고 그 번호로 쌓는다
   X('mybook').onsubmit = async e => {
@@ -230,6 +232,7 @@ export async function startTeacher(root, { user, onLogout }) {
       <div class="bar"><i style="width:${pct}%"></i></div>
       ${L && !L.allDone ? `<p class="small" style="margin:8px 0 0">다음 목표 <b>${esc(L.next.name)}</b>까지 <b>${fmtM(L.landmark.remainingM)}</b></p>` : ''}
       <p class="small muted" style="margin:8px 0 0">환산 비율: 1쪽 = ${cm}cm (100쪽 = ${fmtM(cm)})</p>
+      <p class="small muted" style="margin:2px 0 0" data-x="visits">${visitText}</p>
       <button class="btn small" style="margin-top:10px" data-x="tvbtn">📺 교실 TV로 열기</button>`;
     X('tvbtn').onclick = () => { const u = new URL(location.href); u.search = ''; for (const k of ['demo', 'emulator']) if (new URL(location.href).searchParams.has(k)) u.searchParams.set(k, ''); u.searchParams.set('tv', cls.code); window.open(u.toString(), '_blank'); };
     if (L) renderDex(X('dex'), L.reachedCount);
