@@ -25,6 +25,16 @@ service cloud.firestore {
       return s is string && s.matches('.*\\S.*');
     }
 
+    // 방문자 수: 오늘(d날짜)과 누적(total) 숫자만. 읽기는 누구나, 쓰기는 1씩 올리는 것만 허용한다
+    match /site/{docId} {
+      allow get: if true;
+      allow create: if docId.matches('total|d[0-9]{8}')
+        && request.resource.data.keys().hasOnly(['count']) && request.resource.data.count == 1;
+      allow update: if docId.matches('total|d[0-9]{8}')
+        && request.resource.data.keys().hasOnly(['count']) && request.resource.data.count is int
+        && request.resource.data.count == resource.data.count + 1;
+    }
+
     match /classes/{code} {
       // 코드를 아는 사람만 반 정보를 읽는다
       allow get: if true;

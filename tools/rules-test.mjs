@@ -5,7 +5,7 @@ import { test, before, after, beforeEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { initializeTestEnvironment, assertSucceeds, assertFails } from '@firebase/rules-unit-testing';
-import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, serverTimestamp } from 'firebase/firestore';
+import { doc, getDoc, getDocs, setDoc, updateDoc, deleteDoc, addDoc, collection, query, where, serverTimestamp, increment } from 'firebase/firestore';
 
 const RULES = process.env.RULES_PATH || new URL('../firestore.rules', import.meta.url).pathname;
 let env;
@@ -181,4 +181,18 @@ test('이름 고치기는 주인 선생님만', async () => {
   await assertFails(updateDoc(st(anon()), { name: '익명' }));
   await assertFails(updateDoc(st(teacher(T1)), { name: ' ' }));
   await assertFails(updateDoc(st(teacher(T1)), { number: 7 }));                          // 번호는 문서 주소와 같아야 함
+});
+
+test('방문자 수: 누구나 읽고, 1씩만 올릴 수 있다', async () => {
+  const d = (db, id) => doc(db, 'site', id);
+  await assertSucceeds(getDoc(d(anon(), 'total')));
+  await assertSucceeds(setDoc(d(anon(), 'total'), { count: 1 }));                        // 처음 만들 때는 1
+  await assertFails(setDoc(d(anon(), 'd20261027'), { count: 5 }));                        // 1이 아니면 거부
+  await assertFails(setDoc(d(anon(), 'other'), { count: 1 }));                            // 정해진 이름만
+  await assertFails(setDoc(d(anon(), 'd20261027'), { count: 1, extra: 'x' }));            // 다른 필드 거부
+  await assertSucceeds(setDoc(d(anon(), 'd20261027'), { count: 1 }));
+  await assertSucceeds(updateDoc(d(anon(), 'total'), { count: increment(1) }));          // +1은 허용
+  await assertFails(updateDoc(d(anon(), 'total'), { count: increment(2) }));              // +2는 거부
+  await assertFails(updateDoc(d(anon(), 'total'), { count: 1 }));                         // 줄이기 거부
+  await assertFails(deleteDoc(d(anon(), 'total')));                                       // 지우기 거부
 });

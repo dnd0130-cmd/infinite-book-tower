@@ -129,6 +129,7 @@ export function privacyDialog() {
       <ul class="small" style="text-align:left;margin:8px 0;padding-left:18px;line-height:1.7">
         <li>반 이름, 반 코드, 학생 번호와 <b>이름(또는 별명)</b></li>
         <li>학생이 적은 책 제목, 읽은 쪽수, 한 줄 느낌, 날짜</li>
+        <li>사이트 방문 횟수(하루 한 번, <b>숫자만</b> 세고 누가 왔는지는 저장하지 않아요)</li>
         <li>선생님의 로그인 이메일(구글 또는 이메일 계정)</li>
         <li>학생의 사진, 연락처, 학교·주소는 <b>받지 않아요</b>.</li>
       </ul>

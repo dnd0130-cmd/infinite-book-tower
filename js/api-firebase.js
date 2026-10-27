@@ -10,7 +10,7 @@ import {
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-auth.js';
 import {
   getFirestore, connectFirestoreEmulator, collection, doc, getDoc, getDocs, setDoc, addDoc, updateDoc, deleteDoc,
-  query, where, orderBy, writeBatch, onSnapshot, serverTimestamp,
+  query, where, orderBy, writeBatch, onSnapshot, serverTimestamp, increment,
 } from 'https://www.gstatic.com/firebasejs/10.14.1/firebase-firestore.js';
 import { FIREBASE_CONFIG } from './firebase-config.js';
 import { genCode, resolveNumber, normalizeCode, validateClassCode } from './core.js';
@@ -162,6 +162,17 @@ export function createApi() {
         if (!(await getDoc(doc(db, 'classes', c))).exists()) return make(c);      // 이미 쓰는 코드면 다시
       }
       throw new Error('반 코드를 만들지 못했어요. 다시 시도해 주세요');
+    }),
+    // 방문자 수: count=true면 오늘과 누적을 1씩 올리고, {today, total}을 돌려준다 (숫자만 저장, 개인정보 없음)
+    visits: wrap(async ({ count = false } = {}) => {
+      const today = doc(db, 'site', 'd' + new Date().toLocaleDateString('sv-SE').replaceAll('-', '')), total = doc(db, 'site', 'total');
+      if (count) for (const ref of [total, today]) {
+        // 없는 문서는 규칙상 update가 막히므로 먼저 있는지 보고, 없으면 1로 만든다
+        if ((await getDoc(ref)).exists()) await updateDoc(ref, { count: increment(1) });
+        else await setDoc(ref, { count: 1 }).catch(() => updateDoc(ref, { count: increment(1) }));   // 동시에 처음 만들려던 경우
+      }
+      const [a, b] = await Promise.all([getDoc(today), getDoc(total)]);
+      return { today: a.exists() ? a.data().count : 0, total: b.exists() ? b.data().count : 0 };
     }),
     // 코드가 비어 있는지 (이미 있는 반이면 false). 반 문서는 코드를 아는 사람이 읽을 수 있으므로 누구나 확인할 수 있다
     isCodeFree: wrap(async code => !(await getDoc(doc(db, 'classes', normalizeCode(code)))).exists()),
