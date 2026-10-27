@@ -23,8 +23,8 @@ async function trackVisit() {
     const day = new Date().toLocaleDateString('sv-SE');
     let first = true;
     try { first = localStorage.getItem('bt_visit') !== day; } catch { /* 저장 불가 환경은 매번 센다 */ }
+    if (first) try { localStorage.setItem('bt_visit', day); } catch { /* 무시 */ }   // 응답을 기다리기 전에 표시해 둬야 빠른 새로고침에 두 번 세지 않는다
     const v = await api.visits({ count: first });
-    if (first) try { localStorage.setItem('bt_visit', day); } catch { /* 무시 */ }
     visitText = v ? `방문 오늘 ${v.today.toLocaleString('ko-KR')} · 누적 ${v.total.toLocaleString('ko-KR')}` : '';
     const el = $('[data-visits]', root); if (el) el.textContent = visitText;
   } catch { /* 방문자 수를 못 불러와도 무시 */ }
